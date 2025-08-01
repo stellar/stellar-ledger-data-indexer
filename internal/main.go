@@ -6,8 +6,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-
-	"github.com/stellar/go/network"
 )
 
 type Message struct {
@@ -27,6 +25,37 @@ type DBWritable interface {
 	InsertArgs(any) []any
 }
 
+func getProcessors(config Config, outboundAdapters []OutboundAdapter) (processors []Processor, err error) {
+	switch config.Dataset {
+	case "transactions":
+		transactionDBOutput, _ := NewTransactionDBOutput()
+
+		connString := fmt.Sprintf(
+			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+			config.PostgresConfig.Host,
+			config.PostgresConfig.Port,
+			config.PostgresConfig.User,
+			config.PostgresConfig.Password,
+			config.PostgresConfig.Database,
+		)
+
+		postgesAdapter, _ := NewPostgresAdapter(connString, transactionDBOutput)
+
+		outboundAdapters = append(outboundAdapters, postgesAdapter)
+
+		newProcessors := []Processor{
+			&TransactionProcessor{
+				BaseProcessor: BaseProcessor{
+					OutboundAdapters: outboundAdapters,
+				},
+			},
+		}
+		return newProcessors, nil
+	default:
+		return nil, fmt.Errorf("unsupported dataset: %s", config.Dataset)
+	}
+}
+
 func IndexData(config Config) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
@@ -39,19 +68,16 @@ func IndexData(config Config) {
 		return
 	}
 	outboundAdapters = append(outboundAdapters, zeroMQOutboundAdapter)
-	transactionDBOutput, err := NewTransactionDBOutput()
-	connString := "host=localhost port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
-	postgesAdapter, err := NewPostgresAdapter(connString, transactionDBOutput)
 
-	outboundAdapters = append(outboundAdapters, postgesAdapter)
-
-	processors := []Processor{&processor{
-		outboundAdapters: outboundAdapters,
-	}}
+	processors, err := getProcessors(config, outboundAdapters)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	reader, err := NewLedgerMetadataReader(
 		&config.DataStoreConfig,
-		network.PublicNetworkhistoryArchiveURLs, processors,
+		config.StellarCoreConfig.HistoryArchiveUrls, processors,
 		config.StartLedger,
 		config.EndLedger,
 	)

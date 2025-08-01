@@ -39,6 +39,7 @@ type RuntimeSettings struct {
 	StartLedger    uint32
 	EndLedger      uint32
 	ConfigFilePath string
+	Dataset        string
 }
 
 type PostgresConfig struct {
@@ -46,6 +47,7 @@ type PostgresConfig struct {
 	Database string `toml:"database"`
 	Password string `toml:"password"`
 	User     string `toml:"user"`
+	Port     int    `toml:"port"`
 }
 
 type Config struct {
@@ -54,6 +56,7 @@ type Config struct {
 	PostgresConfig    PostgresConfig            `toml:"postgres_config"`
 	StartLedger       uint32
 	EndLedger         uint32
+	Dataset           string
 }
 
 func NewConfig(settings RuntimeSettings) (*Config, error) {
@@ -61,6 +64,7 @@ func NewConfig(settings RuntimeSettings) (*Config, error) {
 
 	config.StartLedger = uint32(settings.StartLedger)
 	config.EndLedger = uint32(settings.EndLedger)
+	config.Dataset = settings.Dataset
 
 	logger.Infof("Requested export with start=%d, end=%d", config.StartLedger, config.EndLedger)
 

@@ -23,6 +23,7 @@ func defineCommands() *cobra.Command {
 			settings := bindCliParameters(cmd.PersistentFlags().Lookup("start"),
 				cmd.PersistentFlags().Lookup("end"),
 				cmd.PersistentFlags().Lookup("config-file"),
+				cmd.PersistentFlags().Lookup("dataset"),
 			)
 			config, _ := internal.NewConfig(settings)
 			// if err != nil {
@@ -38,12 +39,13 @@ func defineCommands() *cobra.Command {
 		"only export ledgers from 'start' up to 'end' value which must be greater than 'start' and less than the network's current ledger. "+
 		"If 'end' is absent or '0' means unbounded mode, exporter will continue to run indefintely and export the latest closed ledgers from network as they are generated in real time.")
 	rootCmd.PersistentFlags().String("config-file", "config.toml", "Path to the TOML config file. Defaults to 'config.toml' on runtime working directory path.")
+	rootCmd.PersistentFlags().String("dataset", "transactions", "Dataset to index")
 	viper.BindPFlags(rootCmd.PersistentFlags())
 
 	return rootCmd
 }
 
-func bindCliParameters(startFlag *pflag.Flag, endFlag *pflag.Flag, configFileFlag *pflag.Flag) internal.RuntimeSettings {
+func bindCliParameters(startFlag *pflag.Flag, endFlag *pflag.Flag, configFileFlag *pflag.Flag, datasetFlag *pflag.Flag) internal.RuntimeSettings {
 	settings := internal.RuntimeSettings{}
 
 	viper.BindPFlag(startFlag.Name, startFlag)
@@ -57,6 +59,10 @@ func bindCliParameters(startFlag *pflag.Flag, endFlag *pflag.Flag, configFileFla
 	viper.BindPFlag(configFileFlag.Name, configFileFlag)
 	viper.BindEnv(configFileFlag.Name, strutils.KebabToConstantCase(configFileFlag.Name))
 	settings.ConfigFilePath = viper.GetString(configFileFlag.Name)
+
+	viper.BindPFlag(datasetFlag.Name, datasetFlag)
+	viper.BindEnv(datasetFlag.Name, strutils.KebabToConstantCase(datasetFlag.Name))
+	settings.Dataset = viper.GetString(datasetFlag.Name)
 
 	return settings
 }

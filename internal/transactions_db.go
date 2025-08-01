@@ -2,8 +2,6 @@ package internal
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
 )
 
 type TransactionDBOutput struct {
@@ -44,10 +42,6 @@ func (t TransactionDBOutput) InsertSQL() string {
 	        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`
 }
 
-func removeNullBytes(s string) string {
-	return strings.ReplaceAll(s, "\u0000", "")
-}
-
 func (t TransactionDBOutput) InsertArgs(tx any) []any {
 	txOutput, ok := tx.(TransactionOutput)
 	if !ok {
@@ -58,9 +52,6 @@ func (t TransactionDBOutput) InsertArgs(tx any) []any {
 	TransactionEventsBytes, _ := json.Marshal(txOutput.Events.TransactionEvents)
 	ContractEventsBytes, _ := json.Marshal(txOutput.Events.ContractEvents)
 
-	fmt.Println(DiagnosticEventsBytes)
-	fmt.Println(TransactionEventsBytes)
-	fmt.Println(ContractEventsBytes)
 	return []any{
 		txOutput.transactionOutput.TransactionID,
 		txOutput.transactionOutput.LedgerSequence,

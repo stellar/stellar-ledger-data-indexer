@@ -16,3 +16,4 @@ files_per_partition = 64000
   user = "postgres"
   database = "postgres"
   password = "postgres"
+  port = 5432
