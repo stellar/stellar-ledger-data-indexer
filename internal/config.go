@@ -1,4 +1,4 @@
-package cmd
+package internal
 
 import (
 	_ "embed"
@@ -7,6 +7,16 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/datastore"
+	"github.com/stellar/go/support/log"
+)
+
+const (
+	nameSpace = "LedgerDataIndexer"
+)
+
+var (
+	logger  = log.New().WithField("service", nameSpace)
+	version = "develop"
 )
 
 const (

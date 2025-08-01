@@ -6,17 +6,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/support/strutils"
-)
-
-const (
-	nameSpace = "LedgerDataIndexer"
-)
-
-var (
-	logger  = log.New().WithField("service", nameSpace)
-	version = "develop"
+	internal "github.com/stellar/stellar-ledger-data-indexer/internal"
 )
 
 func Execute() error {
@@ -33,11 +24,12 @@ func defineCommands() *cobra.Command {
 				cmd.PersistentFlags().Lookup("end"),
 				cmd.PersistentFlags().Lookup("config-file"),
 			)
-			config, err := NewConfig(settings)
-			if err != nil {
-				logger.Fatal("Failed to load configuration: ", err)
-			}
+			config, _ := internal.NewConfig(settings)
+			// if err != nil {
+			// 	internal.logger.Fatal("Failed to load configuration: ", err)
+			// }
 			fmt.Println(config)
+			internal.IndexData(*config)
 		},
 	}
 
@@ -51,8 +43,8 @@ func defineCommands() *cobra.Command {
 	return rootCmd
 }
 
-func bindCliParameters(startFlag *pflag.Flag, endFlag *pflag.Flag, configFileFlag *pflag.Flag) RuntimeSettings {
-	settings := RuntimeSettings{}
+func bindCliParameters(startFlag *pflag.Flag, endFlag *pflag.Flag, configFileFlag *pflag.Flag) internal.RuntimeSettings {
+	settings := internal.RuntimeSettings{}
 
 	viper.BindPFlag(startFlag.Name, startFlag)
 	viper.BindEnv(startFlag.Name, strutils.KebabToConstantCase(startFlag.Name))
