@@ -28,10 +28,10 @@ func (z *ZeroMQOutboundAdapter) Close() {
 }
 
 func (z *ZeroMQOutboundAdapter) Write(ctx context.Context, msg Message) error {
-	transactionJSON, err := json.Marshal(msg.Payload.(TransactionOutput))
+	outputJSON, err := json.Marshal(msg.Payload)
 	if err != nil {
 		return err
 	}
-	_, err = z.Publisher.Write(transactionJSON)
+	_, err = z.Publisher.Write(outputJSON)
 	return err
 }

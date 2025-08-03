@@ -51,6 +51,30 @@ func getProcessors(config Config, outboundAdapters []OutboundAdapter) (processor
 			},
 		}
 		return newProcessors, nil
+	case "contract_data":
+		contractDBOutput, _ := NewContractDataDBOutput()
+
+		connString := fmt.Sprintf(
+			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+			config.PostgresConfig.Host,
+			config.PostgresConfig.Port,
+			config.PostgresConfig.User,
+			config.PostgresConfig.Password,
+			config.PostgresConfig.Database,
+		)
+
+		postgesAdapter, _ := NewPostgresAdapter(connString, contractDBOutput)
+
+		outboundAdapters = append(outboundAdapters, postgesAdapter)
+
+		newProcessors := []Processor{
+			&ContractDataProcessor{
+				BaseProcessor: BaseProcessor{
+					OutboundAdapters: outboundAdapters,
+				},
+			},
+		}
+		return newProcessors, nil
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", config.Dataset)
 	}
