@@ -6,70 +6,49 @@ import (
 	"log"
 	"os"
 	"os/signal"
+
+	"github.com/stellar/stellar-ledger-data-indexer/internal/db"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/input"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/transform"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
-type Message struct {
-	Payload interface{}
-}
+func getProcessors(ctx context.Context, config Config, outboundAdapters []utils.OutboundAdapter) (processors []utils.Processor, err error) {
+	connString := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		config.PostgresConfig.Host,
+		config.PostgresConfig.Port,
+		config.PostgresConfig.User,
+		config.PostgresConfig.Password,
+		config.PostgresConfig.Database,
+	)
+	session, _ := db.NewPostgresSession(ctx, connString)
 
-type OutboundAdapter interface {
-	Write(ctx context.Context, message Message) error
-	Close()
-}
-
-type DBWritable interface {
-	TableName() string
-	CreateTableSQL() string
-	CreateIndexSQL() string
-	InsertSQL() string
-	InsertArgs(any) []any
-}
-
-func getProcessors(config Config, outboundAdapters []OutboundAdapter) (processors []Processor, err error) {
 	switch config.Dataset {
 	case "transactions":
-		transactionDBOutput, _ := NewTransactionDBOutput()
 
-		connString := fmt.Sprintf(
-			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-			config.PostgresConfig.Host,
-			config.PostgresConfig.Port,
-			config.PostgresConfig.User,
-			config.PostgresConfig.Password,
-			config.PostgresConfig.Database,
-		)
-
-		postgesAdapter, _ := NewPostgresAdapter(connString, transactionDBOutput)
+		transactionBatchInsertBuilder := session.NewTransactionBatchInsertBuilder()
+		postgesAdapter := &utils.PostgresAdapter{BatchInsertBuilder: transactionBatchInsertBuilder}
 
 		outboundAdapters = append(outboundAdapters, postgesAdapter)
 
-		newProcessors := []Processor{
-			&TransactionProcessor{
-				BaseProcessor: BaseProcessor{
+		newProcessors := []utils.Processor{
+			&transform.TransactionProcessor{
+				BaseProcessor: utils.BaseProcessor{
 					OutboundAdapters: outboundAdapters,
 				},
 			},
 		}
 		return newProcessors, nil
 	case "contract_data":
-		contractDBOutput, _ := NewContractDataDBOutput()
-
-		connString := fmt.Sprintf(
-			"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-			config.PostgresConfig.Host,
-			config.PostgresConfig.Port,
-			config.PostgresConfig.User,
-			config.PostgresConfig.Password,
-			config.PostgresConfig.Database,
-		)
-
-		postgesAdapter, _ := NewPostgresAdapter(connString, contractDBOutput)
+		contractDataBatchInsertBuilder := session.NewContractDataBatchInsertBuilder()
+		postgesAdapter := &utils.PostgresAdapter{BatchInsertBuilder: contractDataBatchInsertBuilder}
 
 		outboundAdapters = append(outboundAdapters, postgesAdapter)
 
-		newProcessors := []Processor{
-			&ContractDataProcessor{
-				BaseProcessor: BaseProcessor{
+		newProcessors := []utils.Processor{
+			&transform.ContractDataProcessor{
+				BaseProcessor: utils.BaseProcessor{
 					OutboundAdapters: outboundAdapters,
 				},
 			},
@@ -85,23 +64,24 @@ func IndexData(config Config) {
 	defer stop()
 
 	// Create and register outbound adapters
-	var outboundAdapters []OutboundAdapter
-	zeroMQOutboundAdapter, err := NewZeroMQOutboundAdapter()
+	var outboundAdapters []utils.OutboundAdapter
+	zeroMQOutboundAdapter, err := utils.NewZeroMQOutboundAdapter()
 	if err != nil {
 		log.Printf("%v\n", err)
 		return
 	}
 	outboundAdapters = append(outboundAdapters, zeroMQOutboundAdapter)
 
-	processors, err := getProcessors(config, outboundAdapters)
+	processors, err := getProcessors(ctx, config, outboundAdapters)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	reader, err := NewLedgerMetadataReader(
+	reader, err := input.NewLedgerMetadataReader(
 		&config.DataStoreConfig,
-		config.StellarCoreConfig.HistoryArchiveUrls, processors,
+		config.StellarCoreConfig.HistoryArchiveUrls,
+		processors,
 		config.StartLedger,
 		config.EndLedger,
 	)
