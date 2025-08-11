@@ -2,13 +2,13 @@ package input
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/pkg/errors"
 	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest/cdp"
 	"github.com/stellar/go/ingest/ledgerbackend"
 	"github.com/stellar/go/support/datastore"
+	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
@@ -37,7 +37,7 @@ func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 	}, nil
 }
 
-func (a *LedgerMetadataReader) Run(ctx context.Context) error {
+func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error {
 	historyArchive, err := historyarchive.NewArchivePool(a.historyArchiveURLs, historyarchive.ArchiveOptions{
 		ConnectOptions: storage.ConnectOptions{
 			UserAgent: "ledger-data-indexer",
@@ -64,10 +64,10 @@ func (a *LedgerMetadataReader) Run(ctx context.Context) error {
 	// If no end ledger specified, or it's greater than the latest ledger,
 	// use an unbounded range from the start ledger
 	if a.endLedger == 0 || a.endLedger > latestNetworkLedger {
-		fmt.Printf("Starting at ledger %v ...\n", latestNetworkLedger)
+		Logger.Infof("Starting at ledger %v ...\n", latestNetworkLedger)
 		ledgerRange = ledgerbackend.UnboundedRange(a.startLedger)
 	} else {
-		fmt.Printf("Processing ledgers from %d to %d\n", a.startLedger, a.endLedger)
+		Logger.Infof("Processing ledgers from %d to %d\n", a.startLedger, a.endLedger)
 		ledgerRange = ledgerbackend.BoundedRange(a.startLedger, a.endLedger)
 	}
 	pubConfig := cdp.PublisherConfig{

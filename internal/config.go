@@ -15,7 +15,7 @@ const (
 )
 
 var (
-	logger  = log.New().WithField("service", nameSpace)
+	Logger  = log.New()
 	version = "develop"
 )
 
@@ -60,13 +60,16 @@ type Config struct {
 }
 
 func NewConfig(settings RuntimeSettings) (*Config, error) {
+
+	Logger.SetLevel(log.InfoLevel)
+	Logger = Logger.WithField("service", nameSpace)
 	config := &Config{}
 
 	config.StartLedger = uint32(settings.StartLedger)
 	config.EndLedger = uint32(settings.EndLedger)
 	config.Dataset = settings.Dataset
 
-	logger.Infof("Requested export with start=%d, end=%d", config.StartLedger, config.EndLedger)
+	Logger.Infof("Requested export with start=%d, end=%d", config.StartLedger, config.EndLedger)
 
 	var err error
 	if err = config.processToml(settings.ConfigFilePath); err != nil {

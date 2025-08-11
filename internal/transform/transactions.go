@@ -125,11 +125,12 @@ func (p *TransactionProcessor) Process(ctx context.Context, msg utils.Message) e
 		return err
 	}
 
+	p.Logger.Infof("Processed %d transactions in ledger sequence %d", len(transactions), lhe.Header.LedgerSeq)
+
 	var data []interface{}
 	for _, tx := range transactions {
 		data = append(data, tx)
 	}
 
-	fmt.Printf("%s Ledger: %s Transaction Hash: %s ClosedAt \n", transactions[0].TransactionOutput.LedgerSequence, transactions[0].TransactionOutput.TransactionHash, transactions[0].TransactionOutput.ClosedAt)
 	return p.SendInfo(ctx, data)
 }

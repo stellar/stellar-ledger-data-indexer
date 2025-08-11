@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/stellar/go/support/db"
+	"github.com/stellar/go/support/log"
 )
 
 type DataBatchInsertBuilder interface {
@@ -33,4 +34,5 @@ type OutboundAdapter interface {
 
 type PostgresAdapter struct {
 	BatchInsertBuilder DataBatchInsertBuilder
+	Logger             *log.Entry
 }

@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -25,11 +23,10 @@ func defineCommands() *cobra.Command {
 				cmd.PersistentFlags().Lookup("config-file"),
 				cmd.PersistentFlags().Lookup("dataset"),
 			)
-			config, _ := internal.NewConfig(settings)
-			// if err != nil {
-			// 	internal.logger.Fatal("Failed to load configuration: ", err)
-			// }
-			fmt.Println(config)
+			config, err := internal.NewConfig(settings)
+			if err != nil {
+				internal.Logger.Fatal("Failed to load configuration: ", err)
+			}
 			internal.IndexData(*config)
 		},
 	}

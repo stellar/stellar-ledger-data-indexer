@@ -69,13 +69,10 @@ func (p *ContractDataProcessor) Process(ctx context.Context, msg utils.Message) 
 		return err
 	}
 
+	p.Logger.Info("Processed %d contracts in ledger sequence %d", len(contracts), lhe.Header.LedgerSeq)
 	var data []interface{}
 	for _, tx := range contracts {
 		data = append(data, tx)
-	}
-
-	if len(contracts) > 0 {
-		fmt.Printf("%s Ledger: %s Contract Id: %s ClosedAt \n", contracts[0].LedgerSequence, contracts[0].ContractId, contracts[0].ClosedAt)
 	}
 	return p.SendInfo(ctx, data)
 

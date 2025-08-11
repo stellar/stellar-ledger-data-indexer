@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 
@@ -13,85 +12,99 @@ import (
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
-func getProcessors(ctx context.Context, config Config, outboundAdapters []utils.OutboundAdapter) (processors []utils.Processor, err error) {
-	connString := fmt.Sprintf(
+func postgresConnString(cfg PostgresConfig) string {
+	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		config.PostgresConfig.Host,
-		config.PostgresConfig.Port,
-		config.PostgresConfig.User,
-		config.PostgresConfig.Password,
-		config.PostgresConfig.Database,
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database,
 	)
-	session, _ := db.NewPostgresSession(ctx, connString)
+}
 
-	switch config.Dataset {
+func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter) (processor utils.Processor, err error) {
+	switch dataset {
 	case "transactions":
-
-		transactionBatchInsertBuilder := session.NewTransactionBatchInsertBuilder()
-		postgesAdapter := &utils.PostgresAdapter{BatchInsertBuilder: transactionBatchInsertBuilder}
-
-		outboundAdapters = append(outboundAdapters, postgesAdapter)
-
-		newProcessors := []utils.Processor{
-			&transform.TransactionProcessor{
-				BaseProcessor: utils.BaseProcessor{
-					OutboundAdapters: outboundAdapters,
-				},
+		newProcessor := &transform.TransactionProcessor{
+			BaseProcessor: utils.BaseProcessor{
+				OutboundAdapters: outboundAdapters,
+				Logger:           Logger,
 			},
 		}
-		return newProcessors, nil
+		return newProcessor, nil
 	case "contract_data":
-		contractDataBatchInsertBuilder := session.NewContractDataBatchInsertBuilder()
-		postgesAdapter := &utils.PostgresAdapter{BatchInsertBuilder: contractDataBatchInsertBuilder}
-
-		outboundAdapters = append(outboundAdapters, postgesAdapter)
-
-		newProcessors := []utils.Processor{
-			&transform.ContractDataProcessor{
-				BaseProcessor: utils.BaseProcessor{
-					OutboundAdapters: outboundAdapters,
-				},
+		newProcessor := &transform.ContractDataProcessor{
+			BaseProcessor: utils.BaseProcessor{
+				OutboundAdapters: outboundAdapters,
+				Logger:           Logger,
 			},
 		}
-		return newProcessors, nil
+		return newProcessor, nil
 	default:
-		return nil, fmt.Errorf("unsupported dataset: %s", config.Dataset)
+		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}
+}
+
+func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfig PostgresConfig) (outboundAdapter utils.OutboundAdapter, err error) {
+	connString := postgresConnString(postgresConfig)
+
+	Logger.Infof("Opening Postgres session")
+	session, err := db.NewPostgresSession(ctx, connString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create postgres session: %w", err)
+	}
+	Logger.Infof("Opened postgres and applied migrations")
+
+	var batchInsertBuilder utils.DataBatchInsertBuilder
+	switch dataset {
+	case "transactions":
+		batchInsertBuilder = session.NewTransactionBatchInsertBuilder()
+	case "contract_data":
+		batchInsertBuilder = session.NewContractDataBatchInsertBuilder()
+	default:
+		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
+	}
+	postgesAdapter := &utils.PostgresAdapter{BatchInsertBuilder: batchInsertBuilder, Logger: Logger}
+	return postgesAdapter, nil
 }
 
 func IndexData(config Config) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
 
-	// Create and register outbound adapters
 	var outboundAdapters []utils.OutboundAdapter
-	zeroMQOutboundAdapter, err := utils.NewZeroMQOutboundAdapter()
+	postgresAdapter, err := getPostgresOutputAdapter(ctx, config.Dataset, config.PostgresConfig)
 	if err != nil {
-		log.Printf("%v\n", err)
+		Logger.Fatal(err)
 		return
 	}
-	outboundAdapters = append(outboundAdapters, zeroMQOutboundAdapter)
+	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
-	processors, err := getProcessors(ctx, config, outboundAdapters)
+	processor, err := getProcessor(config.Dataset, outboundAdapters)
 	if err != nil {
-		fmt.Println(err)
+		Logger.Fatal(err)
 		return
 	}
 
 	reader, err := input.NewLedgerMetadataReader(
 		&config.DataStoreConfig,
 		config.StellarCoreConfig.HistoryArchiveUrls,
-		processors,
+		[]utils.Processor{processor},
 		config.StartLedger,
 		config.EndLedger,
 	)
 	if err != nil {
-		fmt.Println(err)
+		Logger.Fatal(err)
 		return
 	}
 
-	log.Printf("ingestion pipeline ended %v\n", reader.Run(ctx))
-	for _, adapter := range outboundAdapters {
-		adapter.Close()
+	err = reader.Run(ctx, Logger)
+	if err != nil {
+		Logger.Error("ingestion pipeline failed:", err)
+	} else {
+		Logger.Info("ingestion pipeline ended successfully")
 	}
+
+	defer func() {
+		for _, adapter := range outboundAdapters {
+			adapter.Close()
+		}
+	}()
 }
