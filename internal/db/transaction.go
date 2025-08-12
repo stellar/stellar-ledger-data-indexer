@@ -53,9 +53,9 @@ func (i *transactionBatchInsertBuilder) Add(data any) error {
 		"tx_meta":            transaction.TransactionOutput.TxMeta,
 		"tx_fee_meta":        transaction.TransactionOutput.TxFeeMeta,
 		"successful":         transaction.TransactionOutput.Successful,
-		"diagnostic_events":  DiagnosticEventsBytes,
-		"transaction_events": TransactionEventsBytes,
-		"contract_events":    ContractEventsBytes,
+		"diagnostic_events":  string(DiagnosticEventsBytes),
+		"transaction_events": string(TransactionEventsBytes),
+		"contract_events":    string(ContractEventsBytes),
 	})
 }
 
