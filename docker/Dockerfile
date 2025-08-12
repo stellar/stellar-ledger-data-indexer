@@ -39,6 +39,7 @@ COPY --from=build /usr/src/indexer/docker docker
 
 # changing workdir to a new path in order to use mounted empty ephemeral volumes as storage
 WORKDIR /indexer/data
+COPY --from=build /usr/src/indexer/internal/db/migrations internal/db/migrations
 
 ENTRYPOINT []
 
