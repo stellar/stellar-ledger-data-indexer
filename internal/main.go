@@ -37,6 +37,14 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter) (pro
 			},
 		}
 		return newProcessor, nil
+	case "ttl":
+		newProcessor := &transform.TTLDataProcessor{
+			BaseProcessor: utils.BaseProcessor{
+				OutboundAdapters: outboundAdapters,
+				Logger:           Logger,
+			},
+		}
+		return newProcessor, nil
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}
@@ -58,6 +66,8 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 		batchInsertBuilder = session.NewTransactionBatchInsertBuilder()
 	case "contract_data":
 		batchInsertBuilder = session.NewContractDataBatchInsertBuilder()
+	case "ttl":
+		batchInsertBuilder = session.NewTTLDataBatchInsertBuilder()
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}

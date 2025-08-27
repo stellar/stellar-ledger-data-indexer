@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/support/db"
@@ -42,18 +43,28 @@ func (i *contractDataBatchInsertBuilder) Add(data any) error {
 	KeyBytes, _ := json.Marshal(contractData.Key)
 	ValBytes, _ := json.Marshal(contractData.Val)
 	KeyDecodedBytes, _ := json.Marshal(contractData.KeyDecoded)
-	ValDecodedBytes, _ := json.Marshal(contractData.ValDecoded)
+	var obj struct {
+		Type  string `json:"type"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(KeyDecodedBytes, &obj); err != nil {
+		panic(err)
+	}
+	fields := strings.Fields(obj.Value)
+	symbol := ""
+	if len(fields) != 0 && obj.Type == "Vec" {
+		symbol = strings.TrimLeft(fields[0], "[")
+	}
 
 	return i.builder.Row(map[string]interface{}{
 		"id":              contractData.ContractId,
 		"ledger_sequence": contractData.LedgerSequence,
+		"key_hash":        contractData.LedgerKeyHash,
 		"durability":      contractData.ContractDurability,
+		"key_decoded":     symbol,
 		"key":             KeyBytes,
-		"key_decoded":     KeyDecodedBytes,
 		"val":             ValBytes,
-		"val_decoded":     ValDecodedBytes,
 		"closed_at":       contractData.ClosedAt,
-		"data":            contractData.ContractDataXDR,
 	})
 }
 
