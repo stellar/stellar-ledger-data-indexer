@@ -2,6 +2,9 @@ package utils
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	"github.com/stellar/go/support/log"
@@ -33,4 +36,22 @@ func (p *BaseProcessor) SendInfo(ctx context.Context, data interface{}) error {
 		}
 	}
 	return nil
+}
+
+func RemoveFullRowDupes[T any](rows []T) []T {
+	seen := make(map[string]bool)
+	unique := []T{}
+
+	for _, row := range rows {
+		b, _ := json.Marshal(row)
+		hash := sha256.Sum256(b)
+		key := hex.EncodeToString(hash[:])
+
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		unique = append(unique, row)
+	}
+	return unique
 }

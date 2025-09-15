@@ -49,6 +49,7 @@ func getContractDataDetails(ledgerChangeReader *ingest.LedgerChangeReader, lhe x
 		contractDataOutputs = append(contractDataOutputs, contractDataOutput)
 
 	}
+	contractDataOutputs = utils.RemoveFullRowDupes(contractDataOutputs)
 	return contractDataOutputs, nil
 }
 
