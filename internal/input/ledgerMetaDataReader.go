@@ -5,7 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stellar/go/historyarchive"
-	"github.com/stellar/go/ingest/cdp"
+	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/ingest/ledgerbackend"
 	"github.com/stellar/go/support/datastore"
 	"github.com/stellar/go/support/log"
@@ -70,14 +70,14 @@ func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error
 		Logger.Infof("Processing ledgers from %d to %d\n", a.startLedger, a.endLedger)
 		ledgerRange = ledgerbackend.BoundedRange(a.startLedger, a.endLedger)
 	}
-	pubConfig := cdp.PublisherConfig{
+	pubConfig := ingest.PublisherConfig{
 		DataStoreConfig:       a.dataStoreConfig,
-		BufferedStorageConfig: cdp.DefaultBufferedStorageBackendConfig(a.dataStoreConfig.Schema.LedgersPerFile),
+		BufferedStorageConfig: ingest.DefaultBufferedStorageBackendConfig(a.dataStoreConfig.Schema.LedgersPerFile),
 	}
 	pubConfig.BufferedStorageConfig.RetryLimit = 20
 	pubConfig.BufferedStorageConfig.RetryWait = 3
 
-	return cdp.ApplyLedgerMetadata(ledgerRange, pubConfig, ctx,
+	return ingest.ApplyLedgerMetadata(ledgerRange, pubConfig, ctx,
 		func(lcm xdr.LedgerCloseMeta) error {
 			for _, processor := range a.processors {
 				if err = processor.Process(ctx, utils.Message{Payload: lcm}); err != nil {
