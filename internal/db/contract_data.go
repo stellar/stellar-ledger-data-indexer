@@ -40,8 +40,8 @@ func (i *contractDataBatchInsertBuilder) Add(data any) error {
 		panic("InsertArgs: invalid type passed, expected ContractDataOutput")
 	}
 
-	KeyBytes, _ := json.Marshal(contractData.Key)
-	ValBytes, _ := json.Marshal(contractData.Val)
+	KeyBytes := []byte(contractData.Key["value"])
+	ValBytes := []byte(contractData.Val["value"])
 	KeyDecodedBytes, _ := json.Marshal(contractData.KeyDecoded)
 	var obj struct {
 		Type  string `json:"type"`
@@ -54,6 +54,12 @@ func (i *contractDataBatchInsertBuilder) Add(data any) error {
 	symbol := ""
 	if len(fields) != 0 && obj.Type == "Vec" {
 		symbol = strings.TrimLeft(fields[0], "[")
+	}
+
+	if contractData.ContractDurability == "ContractDataDurabilityPersistent" {
+		contractData.ContractDurability = "persistent"
+	} else {
+		contractData.ContractDurability = "temporary"
 	}
 
 	return i.builder.Row(map[string]interface{}{

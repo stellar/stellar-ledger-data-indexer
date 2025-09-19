@@ -46,12 +46,10 @@ func getContractDataDetails(ledgerChangeReader *ingest.LedgerChangeReader, lhe x
 			continue
 		}
 
-		// Set the LedgerEntryChange to 0 so as to de-duplicate entries that are the same except for this field
-		contractDataOutput.LedgerEntryChange = 0
 		contractDataOutputs = append(contractDataOutputs, contractDataOutput)
 
 	}
-	contractDataOutputs = utils.RemoveFullRowDupes(contractDataOutputs)
+	contractDataOutputs = utils.RemoveDuplicatesByFields(contractDataOutputs, []string{"ContractId", "LedgerKeyHash", "LedgerSequence", "Key"})
 	return contractDataOutputs, nil
 }
 

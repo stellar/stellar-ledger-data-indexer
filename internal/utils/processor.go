@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
@@ -38,20 +39,34 @@ func (p *BaseProcessor) SendInfo(ctx context.Context, data interface{}) error {
 	return nil
 }
 
-func RemoveFullRowDupes[T any](rows []T) []T {
-	seen := make(map[string]bool)
-	unique := []T{}
+func RemoveDuplicatesByFields[T any](rows []T, pkFields []string) []T {
+	seen := make(map[string]T)
 
 	for _, row := range rows {
-		b, _ := json.Marshal(row)
+		v := reflect.ValueOf(row)
+		if v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+
+		keyParts := []any{}
+		for _, f := range pkFields {
+			field := v.FieldByName(f)
+			if !field.IsValid() {
+				panic("field " + f + " does not exist in struct")
+			}
+			keyParts = append(keyParts, field.Interface())
+		}
+
+		b, _ := json.Marshal(keyParts)
 		hash := sha256.Sum256(b)
 		key := hex.EncodeToString(hash[:])
+		seen[key] = row // overwrite previous, keeping latest
+	}
 
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
+	unique := make([]T, 0, len(seen))
+	for _, row := range seen {
 		unique = append(unique, row)
 	}
+
 	return unique
 }
