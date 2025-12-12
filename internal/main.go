@@ -14,8 +14,8 @@ import (
 
 func postgresConnString(cfg PostgresConfig) string {
 	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database,
+		"host=%s port=%d user=%s dbname=%s sslmode=disable",
+		cfg.Host, cfg.Port, cfg.User, cfg.Database,
 	)
 }
 
