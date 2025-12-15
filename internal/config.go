@@ -45,7 +45,6 @@ type RuntimeSettings struct {
 type PostgresConfig struct {
 	Host     string `toml:"host"`
 	Database string `toml:"database"`
-	Password string `toml:"password"`
 	User     string `toml:"user"`
 	Port     int    `toml:"port"`
 }
