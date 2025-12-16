@@ -36,7 +36,7 @@ func defineCommands() *cobra.Command {
 		"only export ledgers from 'start' up to 'end' value which must be greater than 'start' and less than the network's current ledger. "+
 		"If 'end' is absent or '0' means unbounded mode, exporter will continue to run indefintely and export the latest closed ledgers from network as they are generated in real time.")
 	rootCmd.PersistentFlags().String("config-file", "config.toml", "Path to the TOML config file. Defaults to 'config.toml' on runtime working directory path.")
-	rootCmd.PersistentFlags().String("dataset", "transactions", "Dataset to index")
+	rootCmd.PersistentFlags().String("dataset", "contract_data", "Dataset to index")
 	viper.BindPFlags(rootCmd.PersistentFlags())
 
 	return rootCmd

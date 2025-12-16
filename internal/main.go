@@ -21,14 +21,6 @@ func postgresConnString(cfg PostgresConfig) string {
 
 func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter) (processor utils.Processor, err error) {
 	switch dataset {
-	case "transactions":
-		newProcessor := &transform.TransactionProcessor{
-			BaseProcessor: utils.BaseProcessor{
-				OutboundAdapters: outboundAdapters,
-				Logger:           Logger,
-			},
-		}
-		return newProcessor, nil
 	case "contract_data":
 		newProcessor := &transform.ContractDataProcessor{
 			BaseProcessor: utils.BaseProcessor{
@@ -62,8 +54,6 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 
 	var batchInsertBuilder utils.DataBatchInsertBuilder
 	switch dataset {
-	case "transactions":
-		batchInsertBuilder = session.NewTransactionBatchInsertBuilder()
 	case "contract_data":
 		batchInsertBuilder = session.NewContractDataBatchInsertBuilder()
 	case "ttl":
