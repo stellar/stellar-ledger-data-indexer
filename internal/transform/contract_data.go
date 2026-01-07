@@ -16,10 +16,6 @@ type ContractDataProcessor struct {
 	utils.BaseProcessor
 }
 
-func (p *ContractDataProcessor) createContractDataReader(ledgerCloseMeta xdr.LedgerCloseMeta) (*ingest.LedgerChangeReader, error) {
-	return ingest.NewLedgerChangeReaderFromLedgerCloseMeta(network.PublicNetworkPassphrase, ledgerCloseMeta)
-}
-
 func getContractDataDetails(ledgerChangeReader *ingest.LedgerChangeReader, lhe xdr.LedgerHeaderHistoryEntry) ([]contract.ContractDataOutput, error) {
 	contractDataOutputs := []contract.ContractDataOutput{}
 	for {
@@ -59,7 +55,7 @@ func (p *ContractDataProcessor) Process(ctx context.Context, msg utils.Message) 
 		return err
 	}
 
-	contractDataReader, err := p.createContractDataReader(ledgerCloseMeta)
+	contractDataReader, err := p.CreateLCMDataReader(ledgerCloseMeta)
 	if err != nil {
 		return err
 	}

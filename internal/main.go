@@ -22,21 +22,21 @@ func postgresConnString(cfg PostgresConfig) string {
 func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter) (processor utils.Processor, err error) {
 	switch dataset {
 	case "contract_data":
-		newProcessor := &transform.ContractDataProcessor{
+		processor := &transform.ContractDataProcessor{
 			BaseProcessor: utils.BaseProcessor{
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
 			},
 		}
-		return newProcessor, nil
+		return processor, nil
 	case "ttl":
-		newProcessor := &transform.TTLDataProcessor{
+		processor := &transform.TTLDataProcessor{
 			BaseProcessor: utils.BaseProcessor{
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
 			},
 		}
-		return newProcessor, nil
+		return processor, nil
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}
@@ -97,7 +97,7 @@ func IndexData(config Config) {
 
 	err = reader.Run(ctx, Logger)
 	if err != nil {
-		Logger.Error("ingestion pipeline failed:", err)
+		Logger.Fatal("ingestion pipeline failed:", err)
 	} else {
 		Logger.Info("ingestion pipeline ended successfully")
 	}

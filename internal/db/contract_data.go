@@ -25,9 +25,9 @@ type contractDataBatchInsertBuilder struct {
 	table   string
 }
 
-func (q *Q) NewContractDataBatchInsertBuilder() ContractDataBatchInsertBuilder {
+func (dbSession *DBSession) NewContractDataBatchInsertBuilder() ContractDataBatchInsertBuilder {
 	return &contractDataBatchInsertBuilder{
-		session: q,
+		session: dbSession,
 		builder: db.FastBatchInsertBuilder{},
 		table:   "contract_data",
 	}
@@ -63,11 +63,11 @@ func (i *contractDataBatchInsertBuilder) Add(data any) error {
 	}
 
 	return i.builder.Row(map[string]interface{}{
-		"id":              contractData.ContractId,
+		"contract_id":     contractData.ContractId,
 		"ledger_sequence": contractData.LedgerSequence,
 		"key_hash":        contractData.LedgerKeyHash,
 		"durability":      contractData.ContractDurability,
-		"key_decoded":     symbol,
+		"key_symbol":      symbol,
 		"key":             KeyBytes,
 		"val":             ValBytes,
 		"closed_at":       contractData.ClosedAt,

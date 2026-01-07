@@ -23,9 +23,9 @@ type ttlDataBatchInsertBuilder struct {
 	table   string
 }
 
-func (q *Q) NewTTLDataBatchInsertBuilder() TTLDataBatchInsertBuilder {
+func (dbSession *DBSession) NewTTLDataBatchInsertBuilder() TTLDataBatchInsertBuilder {
 	return &ttlDataBatchInsertBuilder{
-		session: q,
+		session: dbSession,
 		builder: db.FastBatchInsertBuilder{},
 		table:   "ttl",
 	}

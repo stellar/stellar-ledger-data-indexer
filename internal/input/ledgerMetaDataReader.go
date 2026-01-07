@@ -14,6 +14,10 @@ import (
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
+const (
+	UserAgent = "stellar-ledger-data-indexer"
+)
+
 type LedgerMetadataReader struct {
 	processors         []utils.Processor
 	historyArchiveURLs []string
@@ -40,7 +44,7 @@ func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error {
 	historyArchive, err := historyarchive.NewArchivePool(a.historyArchiveURLs, historyarchive.ArchiveOptions{
 		ConnectOptions: storage.ConnectOptions{
-			UserAgent: "ledger-data-indexer",
+			UserAgent: UserAgent,
 			Context:   ctx,
 		},
 	})
@@ -57,13 +61,13 @@ func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error
 	var ledgerRange ledgerbackend.Range
 
 	// If no start ledger specified, start from the latest ledger
-	if a.startLedger == 0 {
+	if a.startLedger == 1 {
 		a.startLedger = latestNetworkLedger
 	}
 
 	// If no end ledger specified, or it's greater than the latest ledger,
 	// use an unbounded range from the start ledger
-	if a.endLedger == 0 || a.endLedger > latestNetworkLedger {
+	if a.endLedger == 1 || a.endLedger > latestNetworkLedger {
 		Logger.Infof("Starting at ledger %v ...\n", latestNetworkLedger)
 		ledgerRange = ledgerbackend.UnboundedRange(a.startLedger)
 	} else {

@@ -31,10 +31,10 @@ func defineCommands() *cobra.Command {
 		},
 	}
 
-	rootCmd.PersistentFlags().Uint32P("start", "s", 0, "Starting ledger (inclusive), must be set to a value greater than 1")
-	rootCmd.PersistentFlags().Uint32P("end", "e", 0, "Ending ledger (inclusive), optional, setting to non-zero means bounded mode, "+
+	rootCmd.PersistentFlags().Uint32P("start", "s", 1, "Starting ledger (inclusive), must be set to a value greater than 1. It gets set to the latest closed ledger if set to 1.")
+	rootCmd.PersistentFlags().Uint32P("end", "e", 1, "Ending ledger (inclusive), optional, setting to non-zero means bounded mode, "+
 		"only export ledgers from 'start' up to 'end' value which must be greater than 'start' and less than the network's current ledger. "+
-		"If 'end' is absent or '0' means unbounded mode, exporter will continue to run indefintely and export the latest closed ledgers from network as they are generated in real time.")
+		"If 'end' is absent or '1' means unbounded mode, exporter will continue to run indefintely and export the latest closed ledgers from network as they are generated in real time.")
 	rootCmd.PersistentFlags().String("config-file", "config.toml", "Path to the TOML config file. Defaults to 'config.toml' on runtime working directory path.")
 	rootCmd.PersistentFlags().String("dataset", "contract_data", "Dataset to index")
 	viper.BindPFlags(rootCmd.PersistentFlags())

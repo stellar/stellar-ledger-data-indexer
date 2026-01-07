@@ -2,6 +2,6 @@ package db
 
 import "github.com/stellar/go/support/db"
 
-type Q struct {
+type DBSession struct {
 	db.SessionInterface
 }

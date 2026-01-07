@@ -2,16 +2,17 @@ package db
 
 import (
 	"context"
+	"embed"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/stellar/go/support/db"
 )
 
-func NewPostgresSession(ctx context.Context, connStr string) (*Q, error) {
+var migrationsFS embed.FS
+
+func NewPostgresSession(ctx context.Context, connStr string) (*DBSession, error) {
 	session, err := db.Open("postgres", connStr)
 
 	if err != nil {
@@ -22,18 +23,14 @@ func NewPostgresSession(ctx context.Context, connStr string) (*Q, error) {
 		return nil, fmt.Errorf("failed to ping postgres instance: %w", err)
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch current directory: %w", err)
-	}
-	migrationsPath := filepath.Join(cwd, "internal", "db", "migrations")
-	migrations := &migrate.FileMigrationSource{
-		Dir: migrationsPath,
+	migrations := &migrate.EmbedFileSystemMigrationSource{
+		FileSystem: migrationsFS,
+		Root:       "internal/db/migrations",
 	}
 	_, err = migrate.Exec(session.DB.DB, "postgres", migrations, migrate.Up)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to apply migrations: %v", err)
+		return nil, fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
-	return &Q{SessionInterface: session}, nil
+	return &DBSession{SessionInterface: session}, nil
 }

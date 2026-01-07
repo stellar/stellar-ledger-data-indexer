@@ -20,9 +20,8 @@ var (
 )
 
 const (
-	Pubnet    = "pubnet"
-	Testnet   = "testnet"
-	UserAgent = "LedgerDataIndexer"
+	Pubnet  = "pubnet"
+	Testnet = "testnet"
 )
 
 type StellarCoreConfig struct {
@@ -93,6 +92,11 @@ func (config *Config) processToml(tomlPath string) error {
 	if config.StellarCoreConfig.Network == "" && (len(config.StellarCoreConfig.HistoryArchiveUrls) == 0 || config.StellarCoreConfig.NetworkPassphrase == "" || config.StellarCoreConfig.CaptiveCoreTomlPath == "") {
 		return errors.New("Invalid captive core config, the 'network' parameter must be set to pubnet or testnet or " +
 			"'stellar_core_config.history_archive_urls' and 'stellar_core_config.network_passphrase' and 'stellar_core_config.captive_core_toml_path' must be set.")
+	}
+
+	if config.StellarCoreConfig.Network != "" && (len(config.StellarCoreConfig.HistoryArchiveUrls) != 0 || config.StellarCoreConfig.NetworkPassphrase != "" || config.StellarCoreConfig.CaptiveCoreTomlPath != "") {
+		return errors.New("Invalid captive core config, either set 'network' parameter to pubnet or testnet or " +
+			"set 'stellar_core_config.history_archive_urls' and 'stellar_core_config.network_passphrase' and 'stellar_core_config.captive_core_toml_path', not both.")
 	}
 
 	// network config values are an overlay, with network preconfigured values being first if network is present

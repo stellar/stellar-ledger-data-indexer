@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/network"
 	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
@@ -14,10 +13,6 @@ import (
 
 type TTLDataProcessor struct {
 	utils.BaseProcessor
-}
-
-func (p *TTLDataProcessor) createTTLDataReader(ledgerCloseMeta xdr.LedgerCloseMeta) (*ingest.LedgerChangeReader, error) {
-	return ingest.NewLedgerChangeReaderFromLedgerCloseMeta(network.PublicNetworkPassphrase, ledgerCloseMeta)
 }
 
 func getTTLDataDetails(ledgerChangeReader *ingest.LedgerChangeReader, lhe xdr.LedgerHeaderHistoryEntry) ([]contract.TtlOutput, error) {
@@ -52,7 +47,7 @@ func (p *TTLDataProcessor) Process(ctx context.Context, msg utils.Message) error
 		return err
 	}
 
-	ttlDataReader, err := p.createTTLDataReader(ledgerCloseMeta)
+	ttlDataReader, err := p.CreateLCMDataReader(ledgerCloseMeta)
 	if err != nil {
 		return err
 	}
