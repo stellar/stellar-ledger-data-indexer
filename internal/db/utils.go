@@ -10,6 +10,7 @@ import (
 	"github.com/stellar/go/support/db"
 )
 
+//go:embed migrations/*.sql
 var migrationsFS embed.FS
 
 func NewPostgresSession(ctx context.Context, connStr string) (*DBSession, error) {
