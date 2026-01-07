@@ -9,7 +9,6 @@ import (
 	"reflect"
 
 	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 )
@@ -21,10 +20,11 @@ type Processor interface {
 type BaseProcessor struct {
 	OutboundAdapters []OutboundAdapter
 	Logger           *log.Entry
+	Passphrase       string
 }
 
 func (p *BaseProcessor) CreateLCMDataReader(ledgerCloseMeta xdr.LedgerCloseMeta) (*ingest.LedgerChangeReader, error) {
-	return ingest.NewLedgerChangeReaderFromLedgerCloseMeta(network.PublicNetworkPassphrase, ledgerCloseMeta)
+	return ingest.NewLedgerChangeReaderFromLedgerCloseMeta(p.Passphrase, ledgerCloseMeta)
 }
 
 func (p *BaseProcessor) ExtractLedgerCloseMeta(msg Message) (xdr.LedgerCloseMeta, error) {

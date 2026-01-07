@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/network"
 	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
@@ -16,7 +15,7 @@ type ContractDataProcessor struct {
 	utils.BaseProcessor
 }
 
-func getContractDataDetails(ledgerChangeReader *ingest.LedgerChangeReader, lhe xdr.LedgerHeaderHistoryEntry) ([]contract.ContractDataOutput, error) {
+func getContractDataDetails(ledgerChangeReader *ingest.LedgerChangeReader, lhe xdr.LedgerHeaderHistoryEntry, passPhrase string) ([]contract.ContractDataOutput, error) {
 	contractDataOutputs := []contract.ContractDataOutput{}
 	for {
 		change, err := ledgerChangeReader.Read()
@@ -31,7 +30,7 @@ func getContractDataDetails(ledgerChangeReader *ingest.LedgerChangeReader, lhe x
 		}
 
 		TransformContractData := contract.NewTransformContractDataStruct(contract.AssetFromContractData, contract.ContractBalanceFromContractData)
-		contractDataOutput, err, _ := TransformContractData.TransformContractData(change, network.PublicNetworkPassphrase, lhe)
+		contractDataOutput, err, _ := TransformContractData.TransformContractData(change, passPhrase, lhe)
 
 		if err != nil {
 			return contractDataOutputs, fmt.Errorf("could not transform contract data %w", err)
@@ -61,7 +60,7 @@ func (p *ContractDataProcessor) Process(ctx context.Context, msg utils.Message) 
 	}
 
 	lhe := ledgerCloseMeta.LedgerHeaderHistoryEntry()
-	contracts, err := getContractDataDetails(contractDataReader, lhe)
+	contracts, err := getContractDataDetails(contractDataReader, lhe, p.Passphrase)
 	if err != nil {
 		return err
 	}

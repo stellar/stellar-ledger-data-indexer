@@ -19,13 +19,14 @@ func postgresConnString(cfg PostgresConfig) string {
 	)
 }
 
-func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter) (processor utils.Processor, err error) {
+func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, passPhrase string) (processor utils.Processor, err error) {
 	switch dataset {
 	case "contract_data":
 		processor := &transform.ContractDataProcessor{
 			BaseProcessor: utils.BaseProcessor{
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
+				Passphrase:       passPhrase,
 			},
 		}
 		return processor, nil
@@ -34,6 +35,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter) (pro
 			BaseProcessor: utils.BaseProcessor{
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
+				Passphrase:       passPhrase,
 			},
 		}
 		return processor, nil
@@ -77,7 +79,7 @@ func IndexData(config Config) {
 	}
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
-	processor, err := getProcessor(config.Dataset, outboundAdapters)
+	processor, err := getProcessor(config.Dataset, outboundAdapters, config.DataStoreConfig.NetworkPassphrase)
 	if err != nil {
 		Logger.Fatal(err)
 		return
