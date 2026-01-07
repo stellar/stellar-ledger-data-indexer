@@ -26,7 +26,7 @@ func NewPostgresSession(ctx context.Context, connStr string) (*DBSession, error)
 
 	migrations := &migrate.EmbedFileSystemMigrationSource{
 		FileSystem: migrationsFS,
-		Root:       "internal/db/migrations",
+		Root:       "migrations",
 	}
 	_, err = migrate.Exec(session.DB.DB, "postgres", migrations, migrate.Up)
 	if err != nil {
