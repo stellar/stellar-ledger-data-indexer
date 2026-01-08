@@ -79,7 +79,7 @@ func IndexData(config Config) {
 	}
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
-	processor, err := getProcessor(config.Dataset, outboundAdapters, config.DataStoreConfig.NetworkPassphrase)
+	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
 	if err != nil {
 		Logger.Fatal(err)
 		return
