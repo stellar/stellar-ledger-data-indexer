@@ -1,0 +1,79 @@
+package utils
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"reflect"
+
+	"github.com/stellar/go/ingest"
+	"github.com/stellar/go/support/log"
+	"github.com/stellar/go/xdr"
+)
+
+type Processor interface {
+	Process(context.Context, Message) error
+}
+
+type BaseProcessor struct {
+	OutboundAdapters []OutboundAdapter
+	Logger           *log.Entry
+	Passphrase       string
+}
+
+func (p *BaseProcessor) CreateLCMDataReader(ledgerCloseMeta xdr.LedgerCloseMeta) (*ingest.LedgerChangeReader, error) {
+	p.Logger.Infof("Creating LedgerChangeReader with phrase %s", p.Passphrase)
+	return ingest.NewLedgerChangeReaderFromLedgerCloseMeta(p.Passphrase, ledgerCloseMeta)
+}
+
+func (p *BaseProcessor) ExtractLedgerCloseMeta(msg Message) (xdr.LedgerCloseMeta, error) {
+	ledgerCloseMeta, ok := msg.Payload.(xdr.LedgerCloseMeta)
+	if !ok {
+		return xdr.LedgerCloseMeta{}, fmt.Errorf("invalid payload type")
+	}
+	return ledgerCloseMeta, nil
+}
+
+func (p *BaseProcessor) SendInfo(ctx context.Context, data interface{}) error {
+	for _, adapter := range p.OutboundAdapters {
+		err := adapter.Write(ctx, Message{Payload: data})
+		if err != nil {
+			return fmt.Errorf("error sending data to outbound adapter: %w", err)
+		}
+	}
+	return nil
+}
+
+func RemoveDuplicatesByFields[T any](rows []T, pkFields []string) []T {
+	seen := make(map[string]T)
+
+	for _, row := range rows {
+		v := reflect.ValueOf(row)
+		if v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+
+		keyParts := []any{}
+		for _, f := range pkFields {
+			field := v.FieldByName(f)
+			if !field.IsValid() {
+				panic("field " + f + " does not exist in struct")
+			}
+			keyParts = append(keyParts, field.Interface())
+		}
+
+		b, _ := json.Marshal(keyParts)
+		hash := sha256.Sum256(b)
+		key := hex.EncodeToString(hash[:])
+		seen[key] = row // overwrite previous, keeping latest
+	}
+
+	unique := make([]T, 0, len(seen))
+	for _, row := range seen {
+		unique = append(unique, row)
+	}
+
+	return unique
+}
