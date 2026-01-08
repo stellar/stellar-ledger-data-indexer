@@ -33,16 +33,8 @@ func (dbSession *DBSession) NewContractDataBatchInsertBuilder() ContractDataBatc
 	}
 }
 
-// Add adds a new contract data to the batch
-func (i *contractDataBatchInsertBuilder) Add(data any) error {
-	contractData, ok := data.(contract.ContractDataOutput)
-	if !ok {
-		panic("InsertArgs: invalid type passed, expected ContractDataOutput")
-	}
-
-	KeyBytes := []byte(contractData.Key["value"])
-	ValBytes := []byte(contractData.Val["value"])
-	KeyDecodedBytes, _ := json.Marshal(contractData.KeyDecoded)
+func ExtractSymbol(keyDecoded map[string]string) string {
+	KeyDecodedBytes, _ := json.Marshal(keyDecoded)
 	var obj struct {
 		Type  string `json:"type"`
 		Value string `json:"value"`
@@ -54,7 +46,22 @@ func (i *contractDataBatchInsertBuilder) Add(data any) error {
 	symbol := ""
 	if len(fields) != 0 && obj.Type == "Vec" {
 		symbol = strings.TrimLeft(fields[0], "[")
+		symbol = strings.TrimRight(symbol, "]")
 	}
+	return symbol
+}
+
+// Add adds a new contract data to the batch
+func (i *contractDataBatchInsertBuilder) Add(data any) error {
+	contractData, ok := data.(contract.ContractDataOutput)
+	if !ok {
+		panic("InsertArgs: invalid type passed, expected ContractDataOutput")
+	}
+
+	KeyBytes := []byte(contractData.Key["value"])
+	ValBytes := []byte(contractData.Val["value"])
+
+	symbol := ExtractSymbol(contractData.KeyDecoded)
 
 	if contractData.ContractDurability == "ContractDataDurabilityPersistent" {
 		contractData.ContractDurability = "persistent"
