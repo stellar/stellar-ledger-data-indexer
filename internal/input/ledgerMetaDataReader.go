@@ -68,7 +68,7 @@ func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error
 	// If no end ledger specified, or it's greater than the latest ledger,
 	// use an unbounded range from the start ledger
 	if a.endLedger == 1 || a.endLedger > latestNetworkLedger {
-		Logger.Infof("Starting at ledger %v ...\n", latestNetworkLedger)
+		Logger.Infof("Starting at ledger %v ...\n", a.startLedger)
 		ledgerRange = ledgerbackend.UnboundedRange(a.startLedger)
 	} else {
 		Logger.Infof("Processing ledgers from %d to %d\n", a.startLedger, a.endLedger)

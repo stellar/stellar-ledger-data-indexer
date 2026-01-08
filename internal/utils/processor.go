@@ -24,6 +24,7 @@ type BaseProcessor struct {
 }
 
 func (p *BaseProcessor) CreateLCMDataReader(ledgerCloseMeta xdr.LedgerCloseMeta) (*ingest.LedgerChangeReader, error) {
+	p.Logger.Infof("Creating LedgerChangeReader with phrase %s", p.Passphrase)
 	return ingest.NewLedgerChangeReaderFromLedgerCloseMeta(p.Passphrase, ledgerCloseMeta)
 }
 
