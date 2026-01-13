@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 
@@ -14,7 +15,7 @@ import (
 
 func postgresConnString(cfg PostgresConfig) string {
 	return fmt.Sprintf(
-		"host=%s port=%d user=%s dbname=%s sslmode=disable",
+		"host=%s port=%d user=%s dbname=%s password=postgres sslmode=disable",
 		cfg.Host, cfg.Port, cfg.User, cfg.Database,
 	)
 }
@@ -48,6 +49,7 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 	connString := postgresConnString(postgresConfig)
 
 	Logger.Infof("Opening Postgres session")
+	Logger.Info(connString)
 	session, err := db.NewPostgresSession(ctx, connString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create postgres session: %w", err)
@@ -77,7 +79,17 @@ func IndexData(config Config) {
 		Logger.Fatal(err)
 		return
 	}
+
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
+
+	if config.EnableCSV {
+		writer, err := utils.NewCSVWriter(config.CSVPath, Logger)
+		if err != nil {
+			log.Printf("%v\n", err)
+			return
+		}
+		outboundAdapters = append(outboundAdapters, writer)
+	}
 
 	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
 	if err != nil {
