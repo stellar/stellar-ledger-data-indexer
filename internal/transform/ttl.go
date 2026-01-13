@@ -58,7 +58,7 @@ func (p *TTLDataProcessor) Process(ctx context.Context, msg utils.Message) error
 		return err
 	}
 
-	p.Logger.Info("Processed %d ttls in ledger sequence %d", len(ttls), lhe.Header.LedgerSeq)
+	p.Logger.Infof("Processed %d ttls in ledger sequence %d", len(ttls), lhe.Header.LedgerSeq)
 	var data []interface{}
 	for _, tx := range ttls {
 		data = append(data, tx)
