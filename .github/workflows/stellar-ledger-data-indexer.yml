@@ -45,7 +45,8 @@ jobs:
 
       - name: Create GCP Credentials File
         run: |
-          echo "$CREDS_PROD_HUBBLE" > ${{ runner.workspace }}/gcp-key.json
+          echo "$CREDS_PROD_HUBBLE" > "$RUNNER_WORKSPACE/gcp-key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_WORKSPACE/gcp-key.json" >> $GITHUB_ENV
         shell: bash
         env:
           CREDS_PROD_HUBBLE: ${{secrets.CREDS_PROD_HUBBLE}}
