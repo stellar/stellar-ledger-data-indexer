@@ -65,7 +65,7 @@ func (p *ContractDataProcessor) Process(ctx context.Context, msg utils.Message) 
 		return err
 	}
 
-	p.Logger.Info("Processed %d contracts in ledger sequence %d", len(contracts), lhe.Header.LedgerSeq)
+	// p.Logger.Info("Processed %d contracts in ledger sequence %d", len(contracts), lhe.Header.LedgerSeq)
 	var data []interface{}
 	for _, tx := range contracts {
 		data = append(data, tx)

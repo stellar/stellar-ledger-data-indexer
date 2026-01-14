@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 
@@ -46,7 +45,14 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 }
 
 func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfig PostgresConfig) (outboundAdapter utils.OutboundAdapter, err error) {
-	connString := postgresConnString(postgresConfig)
+	envPostgresConnString := os.Getenv("POSTGRES_CONN_STRING")
+	var connString string
+	if envPostgresConnString != "" {
+		connString = envPostgresConnString
+		Logger.Infof("Using Postgres connection string from environment variable")
+	} else {
+		connString = postgresConnString(postgresConfig)
+	}
 
 	Logger.Infof("Opening Postgres session")
 	Logger.Info(connString)
@@ -81,15 +87,6 @@ func IndexData(config Config) {
 	}
 
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
-
-	if config.EnableCSV {
-		writer, err := utils.NewCSVWriter(config.CSVPath, Logger)
-		if err != nil {
-			log.Printf("%v\n", err)
-			return
-		}
-		outboundAdapters = append(outboundAdapters, writer)
-	}
 
 	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
 	if err != nil {

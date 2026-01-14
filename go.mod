@@ -113,6 +113,7 @@ require (
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
+	github.com/stellar/go-stellar-sdk v0.1.0 // indirect
 	github.com/stellar/go-xdr v0.0.0-20231122183749-b53fb00bcac2 // indirect
 	github.com/stellar/stellar-rpc v0.9.6-0.20250130160539-be7702aa01ba // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
