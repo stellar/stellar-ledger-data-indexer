@@ -43,5 +43,12 @@ jobs:
         with:
           go-version: 1.24
 
+      - name: Create GCP Credentials File
+        run: |
+          echo "$CREDS_PROD_HUBBLE" > ${{ runner.workspace }}/gcp-key.json
+        shell: bash
+        env:
+          CREDS_PROD_HUBBLE: ${{secrets.CREDS_PROD_HUBBLE}}
+
       - name: Run tests
         run: go test -v -cover ./...
