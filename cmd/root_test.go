@@ -67,6 +67,7 @@ func (s *LedgerDataIndexerTestSuite) TestAppend() {
 	s.T().Log(errOutput)
 
 	sess := &db.Session{DB: s.db.Open()}
+	defer sess.DB.Close()
 
 	type ContractRow struct {
 		ContractID     string `db:"contract_id"`
