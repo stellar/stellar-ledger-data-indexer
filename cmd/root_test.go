@@ -10,6 +10,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/stellar/go-stellar-sdk/support/db/dbtest"
+	"github.com/stellar/go/support/db"
 	"github.com/stellar/stellar-ledger-data-indexer/internal"
 	"github.com/stretchr/testify/suite"
 )
@@ -56,7 +57,7 @@ func (s *LedgerDataIndexerTestSuite) TestAppend() {
 	var outWriter bytes.Buffer
 	rootCmd.SetErr(&errWriter)
 	rootCmd.SetOut(&outWriter)
-	rootCmd.SetArgs([]string{"append", "--start", "395", "--end", "400", "--dataset", "contract_data", "--config-file", s.tempConfigFile})
+	rootCmd.SetArgs([]string{"append", "--start", "59561994", "--end", "59562000", "--dataset", "contract_data", "--config-file", s.tempConfigFile})
 	err := rootCmd.ExecuteContext(s.ctx)
 	require.NoError(err)
 
@@ -64,4 +65,25 @@ func (s *LedgerDataIndexerTestSuite) TestAppend() {
 	errOutput := errWriter.String()
 	s.T().Log(output)
 	s.T().Log(errOutput)
+
+	sess := &db.Session{DB: s.db.Open()}
+
+	type ContractRow struct {
+		ContractID     string `db:"contract_id"`
+		LedgerSequence int64  `db:"ledger_sequence"`
+	}
+
+	var actualTopRecords []ContractRow
+	expectedTopRecords := []ContractRow{
+		{ContractID: "CA6PUJLBYKZKUEKLZJMKBZLEKP2OTHANDEOWSFF44FTSYLKQPIICCJBE", LedgerSequence: 59561994},
+		{ContractID: "CA6PUJLBYKZKUEKLZJMKBZLEKP2OTHANDEOWSFF44FTSYLKQPIICCJBE", LedgerSequence: 59561995},
+	}
+	require.NoError(sess.SelectRaw(context.Background(), &actualTopRecords, `SELECT contract_id, ledger_sequence FROM contract_data order by 1,2 limit 2;`))
+	require.Equal(expectedTopRecords, actualTopRecords)
+
+	var actualCount []int
+	expectedCount := []int{981}
+	require.NoError(sess.SelectRaw(context.Background(), &actualCount, `SELECT count(*) FROM contract_data;`))
+	require.Equal(expectedCount, actualCount)
+
 }
