@@ -41,6 +41,26 @@ func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 	}, nil
 }
 
+func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger uint32, Logger *log.Entry) ledgerbackend.Range {
+	var ledgerRange ledgerbackend.Range
+
+	// If no start ledger specified, start from the latest ledger
+	if startLedger <= 1 {
+		startLedger = latestNetworkLedger
+	}
+
+	// If no end ledger specified, or it's greater than the latest ledger,
+	// use an unbounded range from the start ledger
+	if endLedger <= 1 || endLedger > latestNetworkLedger {
+		Logger.Infof("Starting at ledger %v ...\n", startLedger)
+		ledgerRange = ledgerbackend.UnboundedRange(startLedger)
+	} else {
+		Logger.Infof("Processing ledgers from %d to %d\n", startLedger, endLedger)
+		ledgerRange = ledgerbackend.BoundedRange(startLedger, endLedger)
+	}
+	return ledgerRange
+}
+
 func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error {
 	historyArchive, err := historyarchive.NewArchivePool(a.historyArchiveURLs, historyarchive.ArchiveOptions{
 		ConnectOptions: storage.ConnectOptions{
@@ -58,22 +78,8 @@ func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error
 	}
 
 	// Determine the actual ledger range to process
-	var ledgerRange ledgerbackend.Range
+	ledgerRange := GetLedgerBound(a.startLedger, a.endLedger, latestNetworkLedger, Logger)
 
-	// If no start ledger specified, start from the latest ledger
-	if a.startLedger == 1 {
-		a.startLedger = latestNetworkLedger
-	}
-
-	// If no end ledger specified, or it's greater than the latest ledger,
-	// use an unbounded range from the start ledger
-	if a.endLedger == 1 || a.endLedger > latestNetworkLedger {
-		Logger.Infof("Starting at ledger %v ...\n", a.startLedger)
-		ledgerRange = ledgerbackend.UnboundedRange(a.startLedger)
-	} else {
-		Logger.Infof("Processing ledgers from %d to %d\n", a.startLedger, a.endLedger)
-		ledgerRange = ledgerbackend.BoundedRange(a.startLedger, a.endLedger)
-	}
 	pubConfig := ingest.PublisherConfig{
 		DataStoreConfig:       a.dataStoreConfig,
 		BufferedStorageConfig: ingest.DefaultBufferedStorageBackendConfig(a.dataStoreConfig.Schema.LedgersPerFile),

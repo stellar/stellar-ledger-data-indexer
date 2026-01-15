@@ -3,7 +3,6 @@ package transform
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/processors/contract"
@@ -15,16 +14,9 @@ type ContractDataProcessor struct {
 	utils.BaseProcessor
 }
 
-func getContractDataDetails(ledgerChangeReader *ingest.LedgerChangeReader, lhe xdr.LedgerHeaderHistoryEntry, passPhrase string) ([]contract.ContractDataOutput, error) {
+func GetContractDataDetails(changes []ingest.Change, lhe xdr.LedgerHeaderHistoryEntry, passPhrase string) ([]contract.ContractDataOutput, error) {
 	contractDataOutputs := []contract.ContractDataOutput{}
-	for {
-		change, err := ledgerChangeReader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return contractDataOutputs, fmt.Errorf("could not read contract data %w", err)
-		}
+	for _, change := range changes {
 		if change.Type != xdr.LedgerEntryTypeContractData {
 			continue
 		}
@@ -53,14 +45,13 @@ func (p *ContractDataProcessor) Process(ctx context.Context, msg utils.Message) 
 	if err != nil {
 		return err
 	}
-
-	contractDataReader, err := p.CreateLCMDataReader(ledgerCloseMeta)
+	lhe := ledgerCloseMeta.LedgerHeaderHistoryEntry()
+	changes, err := p.ReadIngestChanges(ctx, msg)
 	if err != nil {
 		return err
 	}
 
-	lhe := ledgerCloseMeta.LedgerHeaderHistoryEntry()
-	contracts, err := getContractDataDetails(contractDataReader, lhe, p.Passphrase)
+	contracts, err := GetContractDataDetails(changes, lhe, p.Passphrase)
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,6 @@ import (
 type TTLDataBatchInsertBuilder interface {
 	Add(data any) error
 	Exec(ctx context.Context) error
-	Len() int
 	TableName() string
 	Close() error
 	Reset()
@@ -49,11 +48,6 @@ func (i *ttlDataBatchInsertBuilder) Add(data any) error {
 // Exec writes the batch of ttl data to the database.
 func (i *ttlDataBatchInsertBuilder) Exec(ctx context.Context) error {
 	return i.builder.Exec(ctx, i.session, i.table)
-}
-
-// Len returns the number of elements in the batch
-func (i *ttlDataBatchInsertBuilder) Len() int {
-	return i.builder.Len()
 }
 
 // TableName returns the name of the table for the batch insert

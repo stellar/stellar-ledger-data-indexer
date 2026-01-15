@@ -12,7 +12,7 @@ import (
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
-func postgresConnString(cfg PostgresConfig) string {
+func PostgresConnString(cfg PostgresConfig) string {
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s dbname=%s sslmode=disable",
 		cfg.Host, cfg.Port, cfg.User, cfg.Database,
@@ -51,7 +51,7 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 		connString = envPostgresConnString
 		Logger.Infof("Using Postgres connection string from environment variable")
 	} else {
-		connString = postgresConnString(postgresConfig)
+		connString = PostgresConnString(postgresConfig)
 	}
 
 	Logger.Infof("Opening Postgres session")

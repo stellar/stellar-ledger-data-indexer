@@ -10,17 +10,10 @@ import (
 type DataBatchInsertBuilder interface {
 	Add(data any) error
 	Exec(ctx context.Context) error
-	Len() int
 	TableName() string
 	Close() error
 	Reset()
 	Session() db.SessionInterface
-}
-
-type dataBatchInsertBuilder struct {
-	session db.SessionInterface
-	builder db.FastBatchInsertBuilder
-	table   string
 }
 
 type Message struct {

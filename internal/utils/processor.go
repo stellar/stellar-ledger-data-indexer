@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
 
 	"github.com/stellar/go/ingest"
@@ -46,6 +47,33 @@ func (p *BaseProcessor) SendInfo(ctx context.Context, data interface{}) error {
 	return nil
 }
 
+func (p *BaseProcessor) ReadIngestChanges(ctx context.Context, msg Message) ([]ingest.Change, error) {
+	changes := []ingest.Change{}
+
+	ledgerCloseMeta, err := p.ExtractLedgerCloseMeta(msg)
+	if err != nil {
+		return []ingest.Change{}, err
+	}
+
+	dataReader, err := p.CreateLCMDataReader(ledgerCloseMeta)
+	if err != nil {
+		return []ingest.Change{}, err
+	}
+
+	for {
+		change, err := dataReader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return []ingest.Change{}, fmt.Errorf("could not read ledger data %w", err)
+		}
+		changes = append(changes, change)
+	}
+	return changes, nil
+}
+
+// RemoveDuplicatesByFields removes duplicate entries from a slice based on given primary key fields.
 func RemoveDuplicatesByFields[T any](rows []T, pkFields []string) []T {
 	seen := make(map[string]T)
 
