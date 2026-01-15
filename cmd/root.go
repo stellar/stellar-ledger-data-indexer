@@ -8,12 +8,9 @@ import (
 	internal "github.com/stellar/stellar-ledger-data-indexer/internal"
 )
 
-var (
-	RootCmd = DefineCommands()
-)
-
 func Execute() error {
-	return RootCmd.Execute()
+	rootCmd := DefineCommands()
+	return rootCmd.Execute()
 }
 
 func DefineCommands() *cobra.Command {

@@ -3,9 +3,7 @@ package db
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/support/db"
@@ -51,34 +49,6 @@ func ExtractSymbol(keyDecoded map[string]string) string {
 		symbol = strings.TrimRight(symbol, "]")
 	}
 	return symbol
-}
-
-func GetContractDataRecord(data any) []string {
-	contractData, ok := data.(contract.ContractDataOutput)
-	if !ok {
-		panic("InsertArgs: invalid type passed, expected ContractDataOutput")
-	}
-
-	KeyBytes := []byte(contractData.Key["value"])
-	ValBytes := []byte(contractData.Val["value"])
-
-	symbol := ExtractSymbol(contractData.KeyDecoded)
-
-	if contractData.ContractDurability == "ContractDataDurabilityPersistent" {
-		contractData.ContractDurability = "persistent"
-	} else {
-		contractData.ContractDurability = "temporary"
-	}
-	return []string{
-		contractData.ContractId,
-		strconv.FormatUint(uint64(contractData.LedgerSequence), 10),
-		contractData.LedgerKeyHash,
-		contractData.ContractDurability,
-		symbol,
-		string(KeyBytes),
-		string(ValBytes),
-		contractData.ClosedAt.Format(time.RFC3339Nano),
-	}
 }
 
 // Add adds a new contract data to the batch

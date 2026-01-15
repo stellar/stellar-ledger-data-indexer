@@ -14,7 +14,7 @@ import (
 
 func postgresConnString(cfg PostgresConfig) string {
 	return fmt.Sprintf(
-		"host=%s port=%d user=%s dbname=%s password=postgres sslmode=disable",
+		"host=%s port=%d user=%s dbname=%s sslmode=disable",
 		cfg.Host, cfg.Port, cfg.User, cfg.Database,
 	)
 }
@@ -55,7 +55,6 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 	}
 
 	Logger.Infof("Opening Postgres session")
-	Logger.Info(connString)
 	session, err := db.NewPostgresSession(ctx, connString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create postgres session: %w", err)
@@ -85,7 +84,6 @@ func IndexData(config Config) {
 		Logger.Fatal(err)
 		return
 	}
-
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
 	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
