@@ -52,4 +52,13 @@ jobs:
           CREDS_PROD_HUBBLE: ${{secrets.CREDS_PROD_HUBBLE}}
 
       - name: Run tests
-        run: go test -v -cover ./...
+        run: go test -v -coverprofile=${{ runner.workspace }}/coverage.out -coverpkg=./... ./...
+
+      - name: Check Coverage
+        run: |
+          COVERAGE=$(go tool cover -func=${{ runner.workspace }}/coverage.out | grep total: | awk '{print $3}' | sed 's/%//')
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < 55" | bc -l) )); then
+            echo "Coverage is below the 55% threshold."
+            exit 1
+          fi
