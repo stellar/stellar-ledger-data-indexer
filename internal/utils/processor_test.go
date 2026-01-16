@@ -54,7 +54,9 @@ func TestRemoveDuplicatesByFields(t *testing.T) {
 	for _, row := range out {
 		if row.ContractId == "C1" &&
 			row.LedgerKeyHash == "HASH_A" &&
-			row.LedgerSequence == 100 {
+			row.LedgerSequence == 100 &&
+			len(row.Key) == 1 &&
+			row.Key["type"] == "balance" {
 
 			foundC1 = true
 			if row.ContractDataBalance != "20" {
@@ -68,7 +70,9 @@ func TestRemoveDuplicatesByFields(t *testing.T) {
 		// Validate that the unique row (C2) is present
 		if row.ContractId == "C2" &&
 			row.LedgerKeyHash == "HASH_B" &&
-			row.LedgerSequence == 200 {
+			row.LedgerSequence == 200 &&
+			len(row.Key) == 1 &&
+			row.Key["type"] == "supply" {
 
 			foundC2 = true
 			if row.ContractDataBalance != "1000" {
