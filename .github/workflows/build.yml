@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-and-push-container-iamge:
+  build-and-push-container-image:
     name: Build and push a sha tagged container image
     runs-on: ubuntu-24.04
     steps:
