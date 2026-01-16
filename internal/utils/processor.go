@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sort"
 
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/log"
@@ -74,6 +75,7 @@ func (p *BaseProcessor) ReadIngestChanges(ctx context.Context, msg Message) ([]i
 }
 
 // RemoveDuplicatesByFields removes duplicate entries from a slice based on given primary key fields.
+// Returns results in a deterministic order by sorting the hash keys.
 func RemoveDuplicatesByFields[T any](rows []T, pkFields []string) []T {
 	seen := make(map[string]T)
 
@@ -98,9 +100,16 @@ func RemoveDuplicatesByFields[T any](rows []T, pkFields []string) []T {
 		seen[key] = row // overwrite previous, keeping latest
 	}
 
+	// Sort keys to ensure deterministic output order
+	keys := make([]string, 0, len(seen))
+	for k := range seen {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	unique := make([]T, 0, len(seen))
-	for _, row := range seen {
-		unique = append(unique, row)
+	for _, k := range keys {
+		unique = append(unique, seen[k])
 	}
 
 	return unique
