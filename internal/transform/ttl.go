@@ -14,7 +14,7 @@ type TTLDataProcessor struct {
 	utils.BaseProcessor
 }
 
-func getTTLDataDetails(changes []ingest.Change, lhe xdr.LedgerHeaderHistoryEntry) ([]contract.TtlOutput, error) {
+func GetTTLDataDetails(changes []ingest.Change, lhe xdr.LedgerHeaderHistoryEntry) ([]contract.TtlOutput, error) {
 	ttlDataOutputs := []contract.TtlOutput{}
 	for _, change := range changes {
 		if change.Type != xdr.LedgerEntryTypeTtl {
@@ -43,7 +43,7 @@ func (p *TTLDataProcessor) Process(ctx context.Context, msg utils.Message) error
 	if err != nil {
 		return err
 	}
-	ttls, err := getTTLDataDetails(changes, lhe)
+	ttls, err := GetTTLDataDetails(changes, lhe)
 	if err != nil {
 		return err
 	}

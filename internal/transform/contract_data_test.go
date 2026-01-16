@@ -1,7 +1,6 @@
 package transform
 
 import (
-	"math/big"
 	"testing"
 	"time"
 
@@ -60,17 +59,6 @@ func TestGetContractDataDetails(t *testing.T) {
 		assert.Equal(t, test.wantErr, actualError)
 		assert.Equal(t, test.wantOutput, actualOutput)
 	}
-}
-
-func MockAssetFromContractData(ledgerEntry xdr.LedgerEntry, passphrase string) *xdr.Asset {
-	return &xdr.Asset{
-		Type: xdr.AssetTypeAssetTypeNative,
-	}
-}
-
-func MockContractBalanceFromContractData(ledgerEntry xdr.LedgerEntry, passphrase string) ([32]byte, *big.Int, bool) {
-	var holder [32]byte
-	return holder, big.NewInt(0), true
 }
 
 func makeContractDataTestInput() []ingest.Change {
