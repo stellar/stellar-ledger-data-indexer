@@ -15,12 +15,13 @@ func TestGetLedgerBound(t *testing.T) {
 		endLedger           uint32
 		latestNetworkLedger uint32
 		expectedRange       ledgerbackend.Range
+		description         string
 	}{
-		{0, 1, 100, ledgerbackend.UnboundedRange(100)},
-		{1, 1, 100, ledgerbackend.UnboundedRange(100)},
-		{50, 0, 100, ledgerbackend.UnboundedRange(50)},
-		{50, 150, 100, ledgerbackend.UnboundedRange(50)},
-		{50, 70, 100, ledgerbackend.BoundedRange(50, 70)},
+		{0, 1, 100, ledgerbackend.UnboundedRange(100), "start_ledger_0_uses_latest"},
+		{1, 1, 100, ledgerbackend.UnboundedRange(100), "start_ledger_1_uses_latest"},
+		{50, 0, 100, ledgerbackend.UnboundedRange(50), "no_end_ledger_unbounded"},
+		{50, 150, 100, ledgerbackend.UnboundedRange(50), "end_ledger_greater_than_latest_unbounded"},
+		{50, 70, 100, ledgerbackend.BoundedRange(50, 70), "bounded_range"},
 	}
 
 	for _, tt := range tests {

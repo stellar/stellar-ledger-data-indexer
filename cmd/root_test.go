@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -30,7 +29,6 @@ func TestLedgerDataIndexerTestSuite(t *testing.T) {
 func (s *LedgerDataIndexerTestSuite) SetupSuite() {
 	s.db = dbtest.Postgres(s.T())
 	os.Setenv("POSTGRES_CONN_STRING", s.db.DSN)
-	fmt.Println(s.db.DSN)
 }
 
 func (s *LedgerDataIndexerTestSuite) TearDownSuite() {
