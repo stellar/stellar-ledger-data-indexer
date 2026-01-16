@@ -21,6 +21,25 @@ $ ./stellar-ledger-data-indexer -config-file config.test.toml --start 58762521 -
 $ docker run --platform linux/amd64 -it stellar/stellar-ledger-data-indexer:latest /bin/bash
 ```
 
+### Testing
+
+This tool has unit and integration test coverage. 
+```sh
+go test -v -coverprofile=coverage.out -coverpkg=./... ./...
+# To check coverage
+go tool cover -func=coverage.out
+```
+
+_Note that integration tests extracts pubnet data from Galexie data lake_
+Running integration tests requires:
+- Having GCP credentials in the shell
+```sh
+gcloud auth login
+gcloud config set project dev-hubble
+gcloud auth application-default login
+``` 
+- Have postgres service running
+
 ### How it works
 
 1. `ledgerMetaDataReader.go` reads raw XDR data from Galexie bucket.

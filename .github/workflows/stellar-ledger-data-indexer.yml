@@ -24,13 +24,8 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v3
-        with:
-          # For pull requests, build and test the PR head not a merge of the PR with the destination.
-          ref: ${{ github.event.pull_request.head.sha || github.ref }}
-          # We need to full history for git-restore-mtime to know what modification dates to use.
-          # Otherwise, the Go test cache will fail (due to the modification time of fixtures changing).
-          fetch-depth: "0"
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Set up Go
         uses: actions/setup-go@v2
