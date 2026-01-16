@@ -10,7 +10,6 @@ require (
 	github.com/spf13/pflag v1.0.7
 	github.com/spf13/viper v1.20.1
 	github.com/stellar/go v0.0.0-20250915171319-4914d3d0af61
-	github.com/stellar/go-stellar-sdk v0.1.0
 	github.com/stretchr/testify v1.11.1
 )
 

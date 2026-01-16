@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stellar/go-stellar-sdk/support/db/dbtest"
 	"github.com/stellar/go/support/db"
+	"github.com/stellar/go/support/db/dbtest"
 	"github.com/stretchr/testify/suite"
 )
 
