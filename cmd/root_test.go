@@ -21,10 +21,10 @@ type LedgerDataIndexerTestSuite struct {
 
 func TestLedgerDataIndexerTestSuite(t *testing.T) {
 
-	galexieGCSSuite := &LedgerDataIndexerTestSuite{
+	indexerTestSuite := &LedgerDataIndexerTestSuite{
 		tempConfigFile: "../config-test.toml",
 	}
-	suite.Run(t, galexieGCSSuite)
+	suite.Run(t, indexerTestSuite)
 }
 
 func (s *LedgerDataIndexerTestSuite) SetupSuite() {

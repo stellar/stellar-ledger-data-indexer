@@ -38,7 +38,7 @@ gcloud auth login
 gcloud config set project dev-hubble
 gcloud auth application-default login
 ``` 
-- Have postgres service running
+- Having a Postgres service running
 
 ### How it works
 
