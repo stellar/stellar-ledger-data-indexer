@@ -3,7 +3,6 @@ package transform
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/processors/contract"
@@ -15,16 +14,9 @@ type TTLDataProcessor struct {
 	utils.BaseProcessor
 }
 
-func getTTLDataDetails(ledgerChangeReader *ingest.LedgerChangeReader, lhe xdr.LedgerHeaderHistoryEntry) ([]contract.TtlOutput, error) {
+func GetTTLDataDetails(changes []ingest.Change, lhe xdr.LedgerHeaderHistoryEntry) ([]contract.TtlOutput, error) {
 	ttlDataOutputs := []contract.TtlOutput{}
-	for {
-		change, err := ledgerChangeReader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return ttlDataOutputs, fmt.Errorf("could not read ttl data %w", err)
-		}
+	for _, change := range changes {
 		if change.Type != xdr.LedgerEntryTypeTtl {
 			continue
 		}
@@ -46,14 +38,12 @@ func (p *TTLDataProcessor) Process(ctx context.Context, msg utils.Message) error
 	if err != nil {
 		return err
 	}
-
-	ttlDataReader, err := p.CreateLCMDataReader(ledgerCloseMeta)
+	lhe := ledgerCloseMeta.LedgerHeaderHistoryEntry()
+	changes, err := p.ReadIngestChanges(ctx, msg)
 	if err != nil {
 		return err
 	}
-
-	lhe := ledgerCloseMeta.LedgerHeaderHistoryEntry()
-	ttls, err := getTTLDataDetails(ttlDataReader, lhe)
+	ttls, err := GetTTLDataDetails(changes, lhe)
 	if err != nil {
 		return err
 	}

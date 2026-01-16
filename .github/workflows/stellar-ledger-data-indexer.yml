@@ -1,0 +1,54 @@
+name: Stellar Ledger Data Indexer
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24
+
+      - name: Create GCP Credentials File
+        run: |
+          echo "$CREDS_PROD_HUBBLE" > "$RUNNER_WORKSPACE/gcp-key.json"
+          chmod 600 "$RUNNER_WORKSPACE/gcp-key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_WORKSPACE/gcp-key.json" >> $GITHUB_ENV
+        shell: bash
+        env:
+          CREDS_PROD_HUBBLE: ${{secrets.CREDS_PROD_HUBBLE}}
+
+      - name: Run tests
+        run: go test -v -coverprofile=${{ runner.workspace }}/coverage.out -coverpkg=./... ./...
+
+      - name: Check Coverage
+        run: |
+          COVERAGE=$(go tool cover -func=${{ runner.workspace }}/coverage.out | grep total: | awk '{print $3}' | sed 's/%//')
+          echo "Coverage: $COVERAGE%"
+          if [ "$(echo "$COVERAGE 80" | awk '{print ($1 < 80)}')" -eq 1 ]; then
+            echo "Coverage is below the 80% threshold."
+            exit 1
+          fi

@@ -12,7 +12,6 @@ import (
 type ContractDataBatchInsertBuilder interface {
 	Add(data any) error
 	Exec(ctx context.Context) error
-	Len() int
 	TableName() string
 	Close() error
 	Reset()
@@ -84,11 +83,6 @@ func (i *contractDataBatchInsertBuilder) Add(data any) error {
 // Exec writes the batch of contract data to the database.
 func (i *contractDataBatchInsertBuilder) Exec(ctx context.Context) error {
 	return i.builder.Exec(ctx, i.session, i.table)
-}
-
-// Len returns the number of elements in the batch
-func (i *contractDataBatchInsertBuilder) Len() int {
-	return i.builder.Len()
 }
 
 // TableName returns the name of the table for the batch insert

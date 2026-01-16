@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
+	"sort"
 
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/support/log"
@@ -46,6 +48,33 @@ func (p *BaseProcessor) SendInfo(ctx context.Context, data interface{}) error {
 	return nil
 }
 
+func (p *BaseProcessor) ReadIngestChanges(ctx context.Context, msg Message) ([]ingest.Change, error) {
+	changes := []ingest.Change{}
+
+	ledgerCloseMeta, err := p.ExtractLedgerCloseMeta(msg)
+	if err != nil {
+		return []ingest.Change{}, err
+	}
+
+	dataReader, err := p.CreateLCMDataReader(ledgerCloseMeta)
+	if err != nil {
+		return []ingest.Change{}, err
+	}
+
+	for {
+		change, err := dataReader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return []ingest.Change{}, fmt.Errorf("could not read ledger data %w", err)
+		}
+		changes = append(changes, change)
+	}
+	return changes, nil
+}
+
+// RemoveDuplicatesByFields removes duplicate entries from a slice based on given primary key fields.
 func RemoveDuplicatesByFields[T any](rows []T, pkFields []string) []T {
 	seen := make(map[string]T)
 
@@ -70,9 +99,16 @@ func RemoveDuplicatesByFields[T any](rows []T, pkFields []string) []T {
 		seen[key] = row // overwrite previous, keeping latest
 	}
 
+	// Sort keys to ensure deterministic output order
+	keys := make([]string, 0, len(seen))
+	for k := range seen {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	unique := make([]T, 0, len(seen))
-	for _, row := range seen {
-		unique = append(unique, row)
+	for _, k := range keys {
+		unique = append(unique, seen[k])
 	}
 
 	return unique

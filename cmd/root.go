@@ -9,11 +9,11 @@ import (
 )
 
 func Execute() error {
-	rootCmd := defineCommands()
+	rootCmd := DefineCommands()
 	return rootCmd.Execute()
 }
 
-func defineCommands() *cobra.Command {
+func DefineCommands() *cobra.Command {
 	var rootCmd = &cobra.Command{
 		Use:   "stellar-ledger-data-indexer",
 		Short: "Export indexed Stellar ledger data to postgres database",
