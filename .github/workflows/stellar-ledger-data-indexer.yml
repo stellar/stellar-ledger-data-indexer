@@ -23,12 +23,6 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-    env:
-      PGHOST: localhost
-      PGPORT: 5432
-      PGUSER: postgres
-      PGPASSWORD: postgres
-      PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v3
         with:
