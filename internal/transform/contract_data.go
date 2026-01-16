@@ -36,6 +36,8 @@ func GetContractDataDetails(changes []ingest.Change, lhe xdr.LedgerHeaderHistory
 		contractDataOutputs = append(contractDataOutputs, contractDataOutput)
 
 	}
+	// It is possible to have multiple changes to the same contract data entry in a single ledger
+	// example: CAJJZSGMMM3PD7N33TAPHGBUGTB43OC73HVIK2L2G6BNGGGYOSSYBXBD, ad520948ba9b01c4e202b5f784de5ed57bd56d18a5de485a54db4b752c0cf61d, 59561994
 	contractDataOutputs = utils.RemoveDuplicatesByFields(contractDataOutputs, []string{"ContractId", "LedgerKeyHash", "LedgerSequence", "Key"})
 	return contractDataOutputs, nil
 }
