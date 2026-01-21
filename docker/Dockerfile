@@ -1,5 +1,5 @@
 # stage 1: build stellar-ledger-data-indexer app with CGO
-FROM golang:1.23.4 AS build
+FROM golang:1.24.0 AS build
 
 ENV CGO_ENABLED=1
 
