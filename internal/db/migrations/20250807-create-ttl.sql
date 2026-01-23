@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS ttl (
     key_hash TEXT,
     ledger_sequence INTEGER NOT NULL,
     live_until_ledger_sequence INTEGER NOT NULL,
-    closed_at TIMESTAMP WITH TIME ZONE NOT NULL
+    closed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    PRIMARY KEY (key_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_key_hash ON ttl (key_hash);
 

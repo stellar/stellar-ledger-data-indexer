@@ -19,14 +19,14 @@ type ContractDataBatchInsertBuilder interface {
 }
 
 type contractDataBatchInsertBuilder struct {
-	session db.SessionInterface
+	session DBSession
 	builder db.FastBatchInsertBuilder
 	table   string
 }
 
 func (dbSession *DBSession) NewContractDataBatchInsertBuilder() ContractDataBatchInsertBuilder {
 	return &contractDataBatchInsertBuilder{
-		session: dbSession,
+		session: DBSession{dbSession},
 		builder: db.FastBatchInsertBuilder{},
 		table:   "contract_data",
 	}
@@ -52,6 +52,10 @@ func ExtractSymbol(keyDecoded map[string]string) string {
 
 // Add adds a new contract data to the batch
 func (i *contractDataBatchInsertBuilder) Add(data any) error {
+	return i.UpsertContractData(context.Background(), data)
+}
+
+func (i *contractDataBatchInsertBuilder) UpsertContractData(ctx context.Context, data any) error {
 	contractData, ok := data.(contract.ContractDataOutput)
 	if !ok {
 		panic("InsertArgs: invalid type passed, expected ContractDataOutput")
@@ -67,17 +71,28 @@ func (i *contractDataBatchInsertBuilder) Add(data any) error {
 	} else {
 		contractData.ContractDurability = "temporary"
 	}
+	var contractId, ledgerSequence, ledgerKeyHash, contractDurability, keySymbol, closedAt interface{}
+	contractId = contractData.ContractId
+	ledgerSequence = contractData.LedgerSequence
+	ledgerKeyHash = contractData.LedgerKeyHash
+	contractDurability = contractData.ContractDurability
+	keySymbol = symbol
+	closedAt = contractData.ClosedAt
 
-	return i.builder.Row(map[string]interface{}{
-		"contract_id":     contractData.ContractId,
-		"ledger_sequence": contractData.LedgerSequence,
-		"key_hash":        contractData.LedgerKeyHash,
-		"durability":      contractData.ContractDurability,
-		"key_symbol":      symbol,
-		"key":             KeyBytes,
-		"val":             ValBytes,
-		"closed_at":       contractData.ClosedAt,
-	})
+	upsertFields := []UpsertField{
+		{"contract_id", "text", []interface{}{&contractId}},
+		{"ledger_sequence", "int", []interface{}{&ledgerSequence}},
+		{"key_hash", "text", []interface{}{&ledgerKeyHash}},
+		{"durability", "text", []interface{}{&contractDurability}},
+		{"key_symbol", "text", []interface{}{&keySymbol}},
+		{"key", "bytea", []interface{}{&KeyBytes}},
+		{"val", "bytea", []interface{}{&ValBytes}},
+		{"closed_at", "timestamp", []interface{}{&closedAt}},
+	}
+	UpsertConditions := []UpsertCondition{
+		{"ledger_sequence", OpGT},
+	}
+	return i.session.UpsertRows(ctx, "contract_data", "key_hash", upsertFields, UpsertConditions)
 }
 
 // Exec writes the batch of contract data to the database.

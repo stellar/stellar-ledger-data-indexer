@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS contract_data (
     key_symbol TEXT,
     key BYTEA,
     val BYTEA,
-    closed_at TIMESTAMP WITH TIME ZONE NOT NULL
+    closed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    PRIMARY KEY (key_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_contract_id ON contract_data (contract_id);
 CREATE INDEX IF NOT EXISTS idx_key_symbol ON contract_data (key_symbol);
