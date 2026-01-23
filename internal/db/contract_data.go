@@ -6,30 +6,21 @@ import (
 	"strings"
 
 	"github.com/stellar/go/processors/contract"
-	"github.com/stellar/go/support/db"
 )
 
-type ContractDataBatchInsertBuilder interface {
-	Add(data any) error
-	Exec(ctx context.Context) error
+type ContractDataDBSession interface {
+	UpsertData(ctx context.Context, data any) error
 	TableName() string
 	Close() error
-	Reset()
-	Session() db.SessionInterface
 }
 
-type contractDataBatchInsertBuilder struct {
+type contractDataDBSession struct {
 	session DBSession
-	builder db.FastBatchInsertBuilder
 	table   string
 }
 
-func (dbSession *DBSession) NewContractDataBatchInsertBuilder() ContractDataBatchInsertBuilder {
-	return &contractDataBatchInsertBuilder{
-		session: DBSession{dbSession},
-		builder: db.FastBatchInsertBuilder{},
-		table:   "contract_data",
-	}
+func NewContractDataDBSession(dbSession DBSession) ContractDataDBSession {
+	return &contractDataDBSession{session: dbSession, table: "contract_data"}
 }
 
 func ExtractSymbol(keyDecoded map[string]string) string {
@@ -50,12 +41,7 @@ func ExtractSymbol(keyDecoded map[string]string) string {
 	return symbol
 }
 
-// Add adds a new contract data to the batch
-func (i *contractDataBatchInsertBuilder) Add(data any) error {
-	return i.UpsertContractData(context.Background(), data)
-}
-
-func (i *contractDataBatchInsertBuilder) UpsertContractData(ctx context.Context, data any) error {
+func (i *contractDataDBSession) UpsertData(ctx context.Context, data any) error {
 	contractData, ok := data.(contract.ContractDataOutput)
 	if !ok {
 		panic("InsertArgs: invalid type passed, expected ContractDataOutput")
@@ -92,27 +78,13 @@ func (i *contractDataBatchInsertBuilder) UpsertContractData(ctx context.Context,
 	UpsertConditions := []UpsertCondition{
 		{"ledger_sequence", OpGT},
 	}
-	return i.session.UpsertRows(ctx, "contract_data", "key_hash", upsertFields, UpsertConditions)
+	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, UpsertConditions)
 }
 
-// Exec writes the batch of contract data to the database.
-func (i *contractDataBatchInsertBuilder) Exec(ctx context.Context) error {
-	return i.builder.Exec(ctx, i.session, i.table)
-}
-
-// TableName returns the name of the table for the batch insert
-func (i *contractDataBatchInsertBuilder) TableName() string {
+func (i *contractDataDBSession) TableName() string {
 	return i.table
 }
 
-func (i *contractDataBatchInsertBuilder) Close() error {
-	return i.session.Close()
-}
-
-func (i *contractDataBatchInsertBuilder) Reset() {
-	i.builder.Reset()
-}
-
-func (i *contractDataBatchInsertBuilder) Session() db.SessionInterface {
-	return i.session
+func (i *contractDataDBSession) Close() error {
+	return i.session.session.Close()
 }

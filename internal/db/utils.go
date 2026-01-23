@@ -33,5 +33,5 @@ func NewPostgresSession(ctx context.Context, connStr string) (*DBSession, error)
 		return nil, fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
-	return &DBSession{SessionInterface: session}, nil
+	return &DBSession{session: session}, nil
 }

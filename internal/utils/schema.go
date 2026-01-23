@@ -3,17 +3,13 @@ package utils
 import (
 	"context"
 
-	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/log"
 )
 
-type DataBatchInsertBuilder interface {
-	Add(data any) error
-	Exec(ctx context.Context) error
+type DBSession interface {
+	UpsertData(ctx context.Context, data any) error
 	TableName() string
 	Close() error
-	Reset()
-	Session() db.SessionInterface
 }
 
 type Message struct {
@@ -26,6 +22,6 @@ type OutboundAdapter interface {
 }
 
 type PostgresAdapter struct {
-	BatchInsertBuilder DataBatchInsertBuilder
-	Logger             *log.Entry
+	Session DBSession
+	Logger  *log.Entry
 }

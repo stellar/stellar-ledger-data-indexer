@@ -61,16 +61,16 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 	}
 	Logger.Infof("Opened postgres and applied migrations")
 
-	var batchInsertBuilder utils.DataBatchInsertBuilder
+	var newSession utils.DBSession
 	switch dataset {
 	case "contract_data":
-		batchInsertBuilder = session.NewContractDataBatchInsertBuilder()
+		newSession = db.NewContractDataDBSession(*session)
 	case "ttl":
-		batchInsertBuilder = session.NewTTLDataBatchInsertBuilder()
+		newSession = db.NewTTLDBSession(*session)
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}
-	postgesAdapter := &utils.PostgresAdapter{BatchInsertBuilder: batchInsertBuilder, Logger: Logger}
+	postgesAdapter := &utils.PostgresAdapter{Session: newSession, Logger: Logger}
 	return postgesAdapter, nil
 }
 

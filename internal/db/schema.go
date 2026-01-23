@@ -10,7 +10,8 @@ import (
 )
 
 type DBSession struct {
-	db.SessionInterface
+	session db.SessionInterface
+	table   string
 }
 
 // upsertField is used in upsertRows function generating upsert query for
@@ -94,7 +95,7 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 		sql += " WHERE " + strings.Join(onConflictConditionPart, " AND ")
 	}
 
-	_, err := q.ExecRaw(
+	_, err := q.session.ExecRaw(
 		context.WithValue(ctx, &db.QueryTypeContextKey, db.UpsertQueryType),
 		sql,
 		pqArrays...,

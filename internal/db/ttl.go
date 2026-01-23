@@ -4,38 +4,24 @@ import (
 	"context"
 
 	"github.com/stellar/go/processors/contract"
-	"github.com/stellar/go/support/db"
 )
 
-type TTLDataBatchInsertBuilder interface {
-	Add(data any) error
-	Exec(ctx context.Context) error
+type TTLDBSession interface {
+	UpsertData(ctx context.Context, data any) error
 	TableName() string
 	Close() error
-	Reset()
-	Session() db.SessionInterface
 }
 
-type ttlDataBatchInsertBuilder struct {
+type ttlDBSession struct {
 	session DBSession
-	builder db.FastBatchInsertBuilder
 	table   string
 }
 
-func (dbSession *DBSession) NewTTLDataBatchInsertBuilder() TTLDataBatchInsertBuilder {
-	return &ttlDataBatchInsertBuilder{
-		session: DBSession{dbSession},
-		builder: db.FastBatchInsertBuilder{},
-		table:   "ttl",
-	}
+func NewTTLDBSession(dbSession DBSession) TTLDBSession {
+	return &ttlDBSession{session: dbSession, table: "ttl"}
 }
 
-// Add adds a new ttl data to the batch
-func (i *ttlDataBatchInsertBuilder) Add(data any) error {
-	return i.UpsertTTL(context.Background(), data)
-}
-
-func (i *ttlDataBatchInsertBuilder) UpsertTTL(ctx context.Context, data any) error {
+func (i *ttlDBSession) UpsertData(ctx context.Context, data any) error {
 	ttlData, ok := data.(contract.TtlOutput)
 	if !ok {
 		panic("InsertArgs: invalid type passed, expected TTLDataOutput")
@@ -57,27 +43,13 @@ func (i *ttlDataBatchInsertBuilder) UpsertTTL(ctx context.Context, data any) err
 	UpsertConditions := []UpsertCondition{
 		{"ledger_sequence", OpGT},
 	}
-	return i.session.UpsertRows(ctx, "ttl", "key_hash", upsertFields, UpsertConditions)
+	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, UpsertConditions)
 }
 
-// Exec writes the batch of ttl data to the database.
-func (i *ttlDataBatchInsertBuilder) Exec(ctx context.Context) error {
-	return i.builder.Exec(ctx, i.session, i.table)
-}
-
-// TableName returns the name of the table for the batch insert
-func (i *ttlDataBatchInsertBuilder) TableName() string {
+func (i *ttlDBSession) TableName() string {
 	return i.table
 }
 
-func (i *ttlDataBatchInsertBuilder) Close() error {
-	return i.session.Close()
-}
-
-func (i *ttlDataBatchInsertBuilder) Reset() {
-	i.builder.Reset()
-}
-
-func (i *ttlDataBatchInsertBuilder) Session() db.SessionInterface {
-	return i.session
+func (i *ttlDBSession) Close() error {
+	return i.session.session.Close()
 }
