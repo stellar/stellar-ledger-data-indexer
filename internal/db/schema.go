@@ -11,7 +11,6 @@ import (
 
 type DBSession struct {
 	session db.SessionInterface
-	table   string
 }
 
 // upsertField is used in upsertRows function generating upsert query for

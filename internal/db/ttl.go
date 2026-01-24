@@ -4,40 +4,44 @@ import (
 	"context"
 
 	"github.com/stellar/go/processors/contract"
+	"github.com/stellar/go/support/db"
 )
 
-type TTLDBSession interface {
-	UpsertData(ctx context.Context, data any) error
+type TTLDBOperator interface {
+	Upsert(ctx context.Context, data any) error
 	TableName() string
-	Close() error
+	Session() db.SessionInterface
 }
 
-type ttlDBSession struct {
+type ttlDBOperator struct {
 	session DBSession
 	table   string
 }
 
-func NewTTLDBSession(dbSession DBSession) TTLDBSession {
-	return &ttlDBSession{session: dbSession, table: "ttl"}
+func NewTTLDBOperator(dbSession DBSession) TTLDBOperator {
+	return &ttlDBOperator{session: dbSession, table: "ttl"}
 }
 
-func (i *ttlDBSession) UpsertData(ctx context.Context, data any) error {
-	ttlData, ok := data.(contract.TtlOutput)
-	if !ok {
-		panic("InsertArgs: invalid type passed, expected TTLDataOutput")
+func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
+	rawRecords := data.([]interface{})
+
+	var keyHash, liveUntilLedgerSequence, ledgerSequence, closedAt []interface{}
+	for _, rawRecord := range rawRecords {
+		ttlData, ok := rawRecord.(contract.TtlOutput)
+		if !ok {
+			panic("InsertArgs: invalid type passed, expected TTLDataOutput")
+		}
+		keyHash = append(keyHash, ttlData.KeyHash)
+		liveUntilLedgerSequence = append(liveUntilLedgerSequence, ttlData.LiveUntilLedgerSeq)
+		closedAt = append(closedAt, ttlData.ClosedAt)
+		ledgerSequence = append(ledgerSequence, ttlData.LedgerSequence)
 	}
 
-	var keyHash, liveUntilLedgerSequence, ledgerSequence, closedAt interface{}
-	keyHash = ttlData.KeyHash
-	liveUntilLedgerSequence = ttlData.LiveUntilLedgerSeq
-	closedAt = ttlData.ClosedAt
-	ledgerSequence = ttlData.LedgerSequence
-
 	upsertFields := []UpsertField{
-		{"key_hash", "text", []interface{}{&keyHash}},
-		{"live_until_ledger_sequence", "int", []interface{}{&liveUntilLedgerSequence}},
-		{"ledger_sequence", "int", []interface{}{&ledgerSequence}},
-		{"closed_at", "timestamp", []interface{}{&closedAt}},
+		{"key_hash", "text", keyHash},
+		{"live_until_ledger_sequence", "int", liveUntilLedgerSequence},
+		{"ledger_sequence", "int", ledgerSequence},
+		{"closed_at", "timestamp", closedAt},
 	}
 
 	UpsertConditions := []UpsertCondition{
@@ -46,10 +50,10 @@ func (i *ttlDBSession) UpsertData(ctx context.Context, data any) error {
 	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, UpsertConditions)
 }
 
-func (i *ttlDBSession) TableName() string {
+func (i *ttlDBOperator) TableName() string {
 	return i.table
 }
 
-func (i *ttlDBSession) Close() error {
-	return i.session.session.Close()
+func (i *ttlDBOperator) Session() db.SessionInterface {
+	return i.session.session
 }

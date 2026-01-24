@@ -3,13 +3,14 @@ package utils
 import (
 	"context"
 
+	"github.com/stellar/go/support/db"
 	"github.com/stellar/go/support/log"
 )
 
-type DBSession interface {
-	UpsertData(ctx context.Context, data any) error
+type DBOperator interface {
+	Upsert(ctx context.Context, data any) error
 	TableName() string
-	Close() error
+	Session() db.SessionInterface
 }
 
 type Message struct {
@@ -22,6 +23,6 @@ type OutboundAdapter interface {
 }
 
 type PostgresAdapter struct {
-	Session DBSession
-	Logger  *log.Entry
+	DBOperator DBOperator
+	Logger     *log.Entry
 }

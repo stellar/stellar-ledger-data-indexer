@@ -6,21 +6,22 @@ import (
 	"strings"
 
 	"github.com/stellar/go/processors/contract"
+	"github.com/stellar/go/support/db"
 )
 
-type ContractDataDBSession interface {
-	UpsertData(ctx context.Context, data any) error
+type ContractDataDBOperator interface {
+	Upsert(ctx context.Context, data any) error
 	TableName() string
-	Close() error
+	Session() db.SessionInterface
 }
 
-type contractDataDBSession struct {
+type contractDataDBOperator struct {
 	session DBSession
 	table   string
 }
 
-func NewContractDataDBSession(dbSession DBSession) ContractDataDBSession {
-	return &contractDataDBSession{session: dbSession, table: "contract_data"}
+func NewContractDataDBOperator(dbSession DBSession) ContractDataDBOperator {
+	return &contractDataDBOperator{session: dbSession, table: "contract_data"}
 }
 
 func ExtractSymbol(keyDecoded map[string]string) string {
@@ -41,39 +42,44 @@ func ExtractSymbol(keyDecoded map[string]string) string {
 	return symbol
 }
 
-func (i *contractDataDBSession) UpsertData(ctx context.Context, data any) error {
-	contractData, ok := data.(contract.ContractDataOutput)
-	if !ok {
-		panic("InsertArgs: invalid type passed, expected ContractDataOutput")
+func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
+	rawRecords := data.([]interface{})
+	var contractId, ledgerSequence, ledgerKeyHash, contractDurability, keySymbol, closedAt, key, val []interface{}
+
+	for _, rawRecord := range rawRecords {
+		contractData, ok := rawRecord.(contract.ContractDataOutput)
+		if !ok {
+			panic("InsertArgs: invalid type passed, expected ContractDataOutput")
+		}
+		KeyBytes := []byte(contractData.Key["value"])
+		ValBytes := []byte(contractData.Val["value"])
+
+		symbol := ExtractSymbol(contractData.KeyDecoded)
+
+		if contractData.ContractDurability == "ContractDataDurabilityPersistent" {
+			contractData.ContractDurability = "persistent"
+		} else {
+			contractData.ContractDurability = "temporary"
+		}
+		contractId = append(contractId, contractData.ContractId)
+		ledgerSequence = append(ledgerSequence, contractData.LedgerSequence)
+		ledgerKeyHash = append(ledgerKeyHash, contractData.LedgerKeyHash)
+		contractDurability = append(contractDurability, contractData.ContractDurability)
+		keySymbol = append(keySymbol, symbol)
+		closedAt = append(closedAt, contractData.ClosedAt)
+		key = append(key, KeyBytes)
+		val = append(val, ValBytes)
 	}
-
-	KeyBytes := []byte(contractData.Key["value"])
-	ValBytes := []byte(contractData.Val["value"])
-
-	symbol := ExtractSymbol(contractData.KeyDecoded)
-
-	if contractData.ContractDurability == "ContractDataDurabilityPersistent" {
-		contractData.ContractDurability = "persistent"
-	} else {
-		contractData.ContractDurability = "temporary"
-	}
-	var contractId, ledgerSequence, ledgerKeyHash, contractDurability, keySymbol, closedAt interface{}
-	contractId = contractData.ContractId
-	ledgerSequence = contractData.LedgerSequence
-	ledgerKeyHash = contractData.LedgerKeyHash
-	contractDurability = contractData.ContractDurability
-	keySymbol = symbol
-	closedAt = contractData.ClosedAt
 
 	upsertFields := []UpsertField{
-		{"contract_id", "text", []interface{}{&contractId}},
-		{"ledger_sequence", "int", []interface{}{&ledgerSequence}},
-		{"key_hash", "text", []interface{}{&ledgerKeyHash}},
-		{"durability", "text", []interface{}{&contractDurability}},
-		{"key_symbol", "text", []interface{}{&keySymbol}},
-		{"key", "bytea", []interface{}{&KeyBytes}},
-		{"val", "bytea", []interface{}{&ValBytes}},
-		{"closed_at", "timestamp", []interface{}{&closedAt}},
+		{"contract_id", "text", contractId},
+		{"ledger_sequence", "int", ledgerSequence},
+		{"key_hash", "text", ledgerKeyHash},
+		{"durability", "text", contractDurability},
+		{"key_symbol", "text", keySymbol},
+		{"key", "bytea", key},
+		{"val", "bytea", val},
+		{"closed_at", "timestamp", closedAt},
 	}
 	UpsertConditions := []UpsertCondition{
 		{"ledger_sequence", OpGT},
@@ -81,10 +87,10 @@ func (i *contractDataDBSession) UpsertData(ctx context.Context, data any) error 
 	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, UpsertConditions)
 }
 
-func (i *contractDataDBSession) TableName() string {
+func (i *contractDataDBOperator) TableName() string {
 	return i.table
 }
 
-func (i *contractDataDBSession) Close() error {
-	return i.session.session.Close()
+func (i *contractDataDBOperator) Session() db.SessionInterface {
+	return i.session.session
 }
