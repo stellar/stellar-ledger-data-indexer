@@ -7,10 +7,8 @@ CREATE TABLE IF NOT EXISTS ttl (
     closed_at TIMESTAMP WITH TIME ZONE NOT NULL,
     PRIMARY KEY (key_hash)
 );
-CREATE INDEX IF NOT EXISTS idx_key_hash ON ttl (key_hash);
 
 
 -- +migrate Down
 -- SQL section 'Down' is executed when this migration is rolled back
-DROP INDEX IF EXISTS idx_key_hash;
 DROP TABLE IF EXISTS ttl;

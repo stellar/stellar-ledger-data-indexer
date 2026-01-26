@@ -8,7 +8,7 @@ type DBSession struct {
 	session db.SessionInterface
 }
 
-// upsertField is used in upsertRows function generating upsert query for
+// UpsertField is used in UpsertRows function generating upsert query for
 // different tables.
 type UpsertField struct {
 	name    string

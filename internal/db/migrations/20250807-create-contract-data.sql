@@ -13,12 +13,10 @@ CREATE TABLE IF NOT EXISTS contract_data (
 );
 CREATE INDEX IF NOT EXISTS idx_contract_id ON contract_data (contract_id);
 CREATE INDEX IF NOT EXISTS idx_key_symbol ON contract_data (key_symbol);
-CREATE INDEX IF NOT EXISTS idx_key_hash ON contract_data (key_hash);
 
 
 -- +migrate Down
 -- SQL section 'Down' is executed when this migration is rolled back
 DROP INDEX IF EXISTS idx_contract_id;
 DROP INDEX IF EXISTS idx_symbol;
-DROP INDEX IF EXISTS idx_key_hash;
 DROP TABLE IF EXISTS contract_data;

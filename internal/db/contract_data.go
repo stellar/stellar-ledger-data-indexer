@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/stellar/go/processors/contract"
@@ -49,10 +50,10 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 	for _, rawRecord := range rawRecords {
 		contractData, ok := rawRecord.(contract.ContractDataOutput)
 		if !ok {
-			panic("InsertArgs: invalid type passed, expected ContractDataOutput")
+			return fmt.Errorf("InsertArgs: invalid type passed, expected ContractDataOutput")
 		}
-		KeyBytes := []byte(contractData.Key["value"])
-		ValBytes := []byte(contractData.Val["value"])
+		keyBytes := []byte(contractData.Key["value"])
+		valBytes := []byte(contractData.Val["value"])
 
 		symbol := ExtractSymbol(contractData.KeyDecoded)
 
@@ -67,8 +68,8 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		contractDurability = append(contractDurability, contractData.ContractDurability)
 		keySymbol = append(keySymbol, symbol)
 		closedAt = append(closedAt, contractData.ClosedAt)
-		key = append(key, KeyBytes)
-		val = append(val, ValBytes)
+		key = append(key, keyBytes)
+		val = append(val, valBytes)
 	}
 
 	upsertFields := []UpsertField{
@@ -81,10 +82,10 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		{"val", "bytea", val},
 		{"closed_at", "timestamp", closedAt},
 	}
-	UpsertConditions := []UpsertCondition{
+	upsertConditions := []UpsertCondition{
 		{"ledger_sequence", OpGT},
 	}
-	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, UpsertConditions)
+	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
 }
 
 func (i *contractDataDBOperator) TableName() string {

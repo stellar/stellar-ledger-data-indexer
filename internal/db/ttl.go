@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/support/db"
@@ -29,7 +30,7 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 	for _, rawRecord := range rawRecords {
 		ttlData, ok := rawRecord.(contract.TtlOutput)
 		if !ok {
-			panic("InsertArgs: invalid type passed, expected TTLDataOutput")
+			return fmt.Errorf("InsertArgs: invalid type passed, expected TTLDataOutput")
 		}
 		keyHash = append(keyHash, ttlData.KeyHash)
 		liveUntilLedgerSequence = append(liveUntilLedgerSequence, ttlData.LiveUntilLedgerSeq)
@@ -44,10 +45,10 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 		{"closed_at", "timestamp", closedAt},
 	}
 
-	UpsertConditions := []UpsertCondition{
+	upsertConditions := []UpsertCondition{
 		{"ledger_sequence", OpGT},
 	}
-	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, UpsertConditions)
+	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
 }
 
 func (i *ttlDBOperator) TableName() string {

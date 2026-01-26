@@ -56,7 +56,6 @@ func NewPostgresSession(ctx context.Context, connStr string) (*DBSession, error)
 }
 
 // Extended from https://github.com/stellar/stellar-horizon/blob/main/internal/db2/history/main.go
-
 func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField string, fields []UpsertField, conditions []UpsertCondition) error {
 	unnestPart := make([]string, 0, len(fields))
 	insertFieldsPart := make([]string, 0, len(fields))

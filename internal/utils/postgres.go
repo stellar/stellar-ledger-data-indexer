@@ -33,7 +33,7 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 	const batchSize = 1000
 	for _, batch := range chunkRecords(records, batchSize) {
 		if err := p.DBOperator.Upsert(ctx, batch); err != nil {
-			return fmt.Errorf("error adding batch to %s: %w", p.DBOperator, err)
+			return fmt.Errorf("error adding batch to %s: %w", p.DBOperator.TableName(), err)
 		}
 		err := p.Flush(ctx)
 		if err != nil {
