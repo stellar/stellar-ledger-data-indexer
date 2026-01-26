@@ -2,67 +2,59 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/support/db"
 )
 
-type TTLDataBatchInsertBuilder interface {
-	Add(data any) error
-	Exec(ctx context.Context) error
+type TTLDBOperator interface {
+	Upsert(ctx context.Context, data any) error
 	TableName() string
-	Close() error
-	Reset()
 	Session() db.SessionInterface
 }
 
-type ttlDataBatchInsertBuilder struct {
-	session db.SessionInterface
-	builder db.FastBatchInsertBuilder
+type ttlDBOperator struct {
+	session DBSession
 	table   string
 }
 
-func (dbSession *DBSession) NewTTLDataBatchInsertBuilder() TTLDataBatchInsertBuilder {
-	return &ttlDataBatchInsertBuilder{
-		session: dbSession,
-		builder: db.FastBatchInsertBuilder{},
-		table:   "ttl",
+func NewTTLDBOperator(dbSession DBSession) TTLDBOperator {
+	return &ttlDBOperator{session: dbSession, table: "ttl"}
+}
+
+func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
+	rawRecords := data.([]interface{})
+
+	var keyHash, liveUntilLedgerSequence, ledgerSequence, closedAt []interface{}
+	for _, rawRecord := range rawRecords {
+		ttlData, ok := rawRecord.(contract.TtlOutput)
+		if !ok {
+			return fmt.Errorf("InsertArgs: invalid type passed, expected TTLDataOutput")
+		}
+		keyHash = append(keyHash, ttlData.KeyHash)
+		liveUntilLedgerSequence = append(liveUntilLedgerSequence, ttlData.LiveUntilLedgerSeq)
+		closedAt = append(closedAt, ttlData.ClosedAt)
+		ledgerSequence = append(ledgerSequence, ttlData.LedgerSequence)
 	}
-}
 
-// Add adds a new ttl data to the batch
-func (i *ttlDataBatchInsertBuilder) Add(data any) error {
-	ttlData, ok := data.(contract.TtlOutput)
-	if !ok {
-		panic("InsertArgs: invalid type passed, expected TTLDataOutput")
+	upsertFields := []UpsertField{
+		{"key_hash", "text", keyHash},
+		{"live_until_ledger_sequence", "int", liveUntilLedgerSequence},
+		{"ledger_sequence", "int", ledgerSequence},
+		{"closed_at", "timestamp", closedAt},
 	}
 
-	return i.builder.Row(map[string]interface{}{
-		"key_hash":                   ttlData.KeyHash,
-		"live_until_ledger_sequence": ttlData.LiveUntilLedgerSeq,
-		"ledger_sequence":            ttlData.LedgerSequence,
-		"closed_at":                  ttlData.ClosedAt,
-	})
+	upsertConditions := []UpsertCondition{
+		{"ledger_sequence", OpGT},
+	}
+	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
 }
 
-// Exec writes the batch of ttl data to the database.
-func (i *ttlDataBatchInsertBuilder) Exec(ctx context.Context) error {
-	return i.builder.Exec(ctx, i.session, i.table)
-}
-
-// TableName returns the name of the table for the batch insert
-func (i *ttlDataBatchInsertBuilder) TableName() string {
+func (i *ttlDBOperator) TableName() string {
 	return i.table
 }
 
-func (i *ttlDataBatchInsertBuilder) Close() error {
-	return i.session.Close()
-}
-
-func (i *ttlDataBatchInsertBuilder) Reset() {
-	i.builder.Reset()
-}
-
-func (i *ttlDataBatchInsertBuilder) Session() db.SessionInterface {
-	return i.session
+func (i *ttlDBOperator) Session() db.SessionInterface {
+	return i.session.session
 }

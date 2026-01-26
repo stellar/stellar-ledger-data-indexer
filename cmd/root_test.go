@@ -93,9 +93,25 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 	require.Equal(expectedTopRecords, actualTopRecords)
 
 	var actualCount []int
-	expectedCount := []int{981}
+	expectedCount := []int{964}
 	require.NoError(sess.SelectRaw(context.Background(), &actualCount, `SELECT count(*) FROM contract_data;`))
 	require.Equal(expectedCount, actualCount)
+
+	var actualHistoricalRecords []ContractRow
+	expectedHistoricalRecords := []ContractRow{
+		{
+			ContractID:     "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
+			LedgerSequence: 59562000,
+			KeyHash:        "72b51b3784ece8d155164e1cb15488931742566809555e3b46b8734ef6fbd453",
+			Durability:     "persistent",
+			KeySymbol:      "Balance",
+			Key:            "AAAAEAAAAAEAAAACAAAADwAAAAdCYWxhbmNlAAAAABIAAAABl2X1uJV1ZMN1DTnAMGclVEeDnW6g/S1+07aaqea1gQo=",
+			Val:            "AAAAEQAAAAEAAAADAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAABJfeaJgvAAAADwAAAAphdXRob3JpemVkAAAAAAAAAAAAAQAAAA8AAAAIY2xhd2JhY2sAAAAAAAAAAA==",
+			ClosedAt:       "2025-10-26T17:15:36Z",
+		},
+	}
+	require.NoError(sess.SelectRaw(context.Background(), &actualHistoricalRecords, `SELECT contract_id, ledger_sequence, key_hash, durability, key_symbol, key, val, closed_at FROM contract_data where key_hash = '72b51b3784ece8d155164e1cb15488931742566809555e3b46b8734ef6fbd453' order by 1,2,3 limit 10;`))
+	require.Equal(expectedHistoricalRecords, actualHistoricalRecords)
 
 }
 

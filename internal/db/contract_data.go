@@ -3,33 +3,26 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/support/db"
 )
 
-type ContractDataBatchInsertBuilder interface {
-	Add(data any) error
-	Exec(ctx context.Context) error
+type ContractDataDBOperator interface {
+	Upsert(ctx context.Context, data any) error
 	TableName() string
-	Close() error
-	Reset()
 	Session() db.SessionInterface
 }
 
-type contractDataBatchInsertBuilder struct {
-	session db.SessionInterface
-	builder db.FastBatchInsertBuilder
+type contractDataDBOperator struct {
+	session DBSession
 	table   string
 }
 
-func (dbSession *DBSession) NewContractDataBatchInsertBuilder() ContractDataBatchInsertBuilder {
-	return &contractDataBatchInsertBuilder{
-		session: dbSession,
-		builder: db.FastBatchInsertBuilder{},
-		table:   "contract_data",
-	}
+func NewContractDataDBOperator(dbSession DBSession) ContractDataDBOperator {
+	return &contractDataDBOperator{session: dbSession, table: "contract_data"}
 }
 
 func ExtractSymbol(keyDecoded map[string]string) string {
@@ -50,54 +43,55 @@ func ExtractSymbol(keyDecoded map[string]string) string {
 	return symbol
 }
 
-// Add adds a new contract data to the batch
-func (i *contractDataBatchInsertBuilder) Add(data any) error {
-	contractData, ok := data.(contract.ContractDataOutput)
-	if !ok {
-		panic("InsertArgs: invalid type passed, expected ContractDataOutput")
+func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
+	rawRecords := data.([]interface{})
+	var contractId, ledgerSequence, ledgerKeyHash, contractDurability, keySymbol, closedAt, key, val []interface{}
+
+	for _, rawRecord := range rawRecords {
+		contractData, ok := rawRecord.(contract.ContractDataOutput)
+		if !ok {
+			return fmt.Errorf("InsertArgs: invalid type passed, expected ContractDataOutput")
+		}
+		keyBytes := []byte(contractData.Key["value"])
+		valBytes := []byte(contractData.Val["value"])
+
+		symbol := ExtractSymbol(contractData.KeyDecoded)
+
+		if contractData.ContractDurability == "ContractDataDurabilityPersistent" {
+			contractData.ContractDurability = "persistent"
+		} else {
+			contractData.ContractDurability = "temporary"
+		}
+		contractId = append(contractId, contractData.ContractId)
+		ledgerSequence = append(ledgerSequence, contractData.LedgerSequence)
+		ledgerKeyHash = append(ledgerKeyHash, contractData.LedgerKeyHash)
+		contractDurability = append(contractDurability, contractData.ContractDurability)
+		keySymbol = append(keySymbol, symbol)
+		closedAt = append(closedAt, contractData.ClosedAt)
+		key = append(key, keyBytes)
+		val = append(val, valBytes)
 	}
 
-	KeyBytes := []byte(contractData.Key["value"])
-	ValBytes := []byte(contractData.Val["value"])
-
-	symbol := ExtractSymbol(contractData.KeyDecoded)
-
-	if contractData.ContractDurability == "ContractDataDurabilityPersistent" {
-		contractData.ContractDurability = "persistent"
-	} else {
-		contractData.ContractDurability = "temporary"
+	upsertFields := []UpsertField{
+		{"contract_id", "text", contractId},
+		{"ledger_sequence", "int", ledgerSequence},
+		{"key_hash", "text", ledgerKeyHash},
+		{"durability", "text", contractDurability},
+		{"key_symbol", "text", keySymbol},
+		{"key", "bytea", key},
+		{"val", "bytea", val},
+		{"closed_at", "timestamp", closedAt},
 	}
-
-	return i.builder.Row(map[string]interface{}{
-		"contract_id":     contractData.ContractId,
-		"ledger_sequence": contractData.LedgerSequence,
-		"key_hash":        contractData.LedgerKeyHash,
-		"durability":      contractData.ContractDurability,
-		"key_symbol":      symbol,
-		"key":             KeyBytes,
-		"val":             ValBytes,
-		"closed_at":       contractData.ClosedAt,
-	})
+	upsertConditions := []UpsertCondition{
+		{"ledger_sequence", OpGT},
+	}
+	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
 }
 
-// Exec writes the batch of contract data to the database.
-func (i *contractDataBatchInsertBuilder) Exec(ctx context.Context) error {
-	return i.builder.Exec(ctx, i.session, i.table)
-}
-
-// TableName returns the name of the table for the batch insert
-func (i *contractDataBatchInsertBuilder) TableName() string {
+func (i *contractDataDBOperator) TableName() string {
 	return i.table
 }
 
-func (i *contractDataBatchInsertBuilder) Close() error {
-	return i.session.Close()
-}
-
-func (i *contractDataBatchInsertBuilder) Reset() {
-	i.builder.Reset()
-}
-
-func (i *contractDataBatchInsertBuilder) Session() db.SessionInterface {
-	return i.session
+func (i *contractDataDBOperator) Session() db.SessionInterface {
+	return i.session.session
 }
