@@ -65,7 +65,7 @@ func makeContractDataTestInput() []ingest.Change {
 	var contractID xdr.ContractId
 	var hash xdr.Hash
 	var scStr xdr.ScString = "a"
-	var testVal bool = true
+	var testVal = true
 
 	contractDataLedgerEntry := xdr.LedgerEntry{
 		LastModifiedLedgerSeq: 24229503,

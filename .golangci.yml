@@ -1,0 +1,16 @@
+version: "2"
+linters:
+  default: none
+  disable:
+    - errcheck
+    - ineffassign
+    - staticcheck
+
+  enable:
+    - importas # Enforces consistent import aliases.
+    - misspell # Finds commonly misspelled English words.
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
