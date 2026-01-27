@@ -30,6 +30,10 @@ func GetTTLDataDetails(changes []ingest.Change, lhe xdr.LedgerHeaderHistoryEntry
 		ttlDataOutputs = append(ttlDataOutputs, TransformTTLData)
 
 	}
+
+	// It is possible to have multiple changes to the same ttl entry in a single ledger
+	// example from testnet data: CDO7SMNK3H2ZTRWSLJOPMGFLHDN5SKNSWJI6CNB2TBXCXAKFC6DPTTZY, 83c830c6d200adbceda8e72d8204017f781b57e1ec8acf03674388a902732779, 901
+	ttlDataOutputs = utils.RemoveDuplicatesByFields(ttlDataOutputs, []string{"KeyHash", "LedgerSequence"})
 	return ttlDataOutputs, nil
 }
 
