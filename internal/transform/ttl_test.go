@@ -119,6 +119,8 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 	// Each change updates the LiveUntilLedgerSeq value
 	// In practice, this can happen when the same entry is bumped multiple times
 	// within the same ledger by different operations
+	// All Pre entries show the state from the previous ledger (ledgerSeq - 1)
+	// All Post entries show the state after modification in the current ledger
 
 	// First change: initial update to LiveUntilLedgerSeq = 100
 	preTtlLedgerEntry1 := xdr.LedgerEntry{
@@ -145,12 +147,12 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 
 	// Second change: another update to the same KeyHash, LiveUntilLedgerSeq = 200
 	preTtlLedgerEntry2 := xdr.LedgerEntry{
-		LastModifiedLedgerSeq: ledgerSeq,
+		LastModifiedLedgerSeq: ledgerSeq - 1,
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeTtl,
 			Ttl: &xdr.TtlEntry{
 				KeyHash:            hash,
-				LiveUntilLedgerSeq: 100,
+				LiveUntilLedgerSeq: 50,
 			},
 		},
 	}
@@ -168,12 +170,12 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 
 	// Third change: final update to the same KeyHash, LiveUntilLedgerSeq = 300
 	preTtlLedgerEntry3 := xdr.LedgerEntry{
-		LastModifiedLedgerSeq: ledgerSeq,
+		LastModifiedLedgerSeq: ledgerSeq - 1,
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeTtl,
 			Ttl: &xdr.TtlEntry{
 				KeyHash:            hash,
-				LiveUntilLedgerSeq: 200,
+				LiveUntilLedgerSeq: 75,
 			},
 		},
 	}
