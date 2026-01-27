@@ -14,6 +14,9 @@ const (
 	nameSpace = "LedgerDataIndexer"
 	// UnboundedModeSentinel is the value used to indicate unbounded mode for start/end ledger.
 	// Values <= this indicate no specific bound is set.
+	// Note: This is set to 1 (not 0) to maintain backward compatibility with existing CLI behavior
+	// where the default value for start/end flags is 1, and endLedger=1 means unbounded mode.
+	// Ledger sequences in Stellar start at 2 (genesis ledger), so 1 is naturally an invalid ledger.
 	UnboundedModeSentinel = uint32(1)
 )
 
