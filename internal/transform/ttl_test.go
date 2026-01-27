@@ -112,6 +112,7 @@ func makeTtlTestOutput() []contract.TtlOutput {
 // to the same TTL entry occur within a single ledger, preventing regression of issue #25
 func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 	var hash xdr.Hash
+	expectedKeyHash := "0000000000000000000000000000000000000000000000000000000000000000"
 
 	// First change: initial update to LiveUntilLedgerSeq = 100
 	preTtlLedgerEntry1 := xdr.LedgerEntry{
@@ -223,7 +224,7 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 
 	// The retained entry should be the latest one with LiveUntilLedgerSeq = 300
 	expectedOutput := contract.TtlOutput{
-		KeyHash:            "0000000000000000000000000000000000000000000000000000000000000000",
+		KeyHash:            expectedKeyHash,
 		LiveUntilLedgerSeq: 300,
 		LastModifiedLedger: 3,
 		LedgerEntryChange:  1, // Updated entry
