@@ -12,6 +12,9 @@ import (
 
 const (
 	nameSpace = "LedgerDataIndexer"
+	// UnboundedModeSentinel is the value used to indicate unbounded mode for start/end ledger.
+	// Values <= this indicate no specific bound is set.
+	UnboundedModeSentinel = uint32(1)
 )
 
 var (

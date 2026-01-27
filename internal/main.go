@@ -101,8 +101,8 @@ func IndexData(config Config) {
 
 	// If there's data in the database, adjust start ledger
 	if maxLedgerInDB > 0 {
-		// If end ledger is not provided (unbounded mode, endLedger <= 1 per CLI convention)
-		if endLedger <= 1 {
+		// If end ledger is not provided (unbounded mode)
+		if endLedger <= UnboundedModeSentinel {
 			// Start from the next ledger after the max in DB
 			startLedger = maxLedgerInDB + 1
 			Logger.Infof("Unbounded mode: Starting from ledger %d (max in DB + 1)", startLedger)
