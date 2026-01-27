@@ -59,16 +59,17 @@ func NewPostgresSession(ctx context.Context, connStr string) (*DBSession, error)
 // Returns 0 if the table is empty. Returns an error if the table name is invalid or if the query fails.
 func (q *DBSession) GetMaxLedgerSequence(ctx context.Context, tableName string) (uint32, error) {
 	// Validate table name against allowed tables to prevent SQL injection
-	allowedTables := map[string]bool{
-		"contract_data": true,
-		"ttl":           true,
+	// Using a map to also prepare queries with validated table names
+	allowedQueries := map[string]string{
+		"contract_data": "SELECT COALESCE(MAX(ledger_sequence), 0) FROM contract_data",
+		"ttl":           "SELECT COALESCE(MAX(ledger_sequence), 0) FROM ttl",
 	}
-	if !allowedTables[tableName] {
+	query, ok := allowedQueries[tableName]
+	if !ok {
 		return 0, fmt.Errorf("invalid table name: %s", tableName)
 	}
 
 	var maxLedger uint32
-	query := fmt.Sprintf("SELECT COALESCE(MAX(ledger_sequence), 0) FROM %s", tableName)
 	err := q.session.GetRaw(ctx, &maxLedger, query)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get max ledger sequence from %s: %w", tableName, err)

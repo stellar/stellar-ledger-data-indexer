@@ -44,7 +44,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 	}
 }
 
-func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfig PostgresConfig) (outboundAdapter utils.OutboundAdapter, err error) {
+func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfig PostgresConfig) (*utils.PostgresAdapter, error) {
 	envPostgresConnString := os.Getenv("POSTGRES_CONN_STRING")
 	var connString string
 	if envPostgresConnString != "" {
@@ -87,12 +87,7 @@ func IndexData(config Config) {
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
 	// Query the max ledger sequence from postgres
-	adapter, ok := postgresAdapter.(*utils.PostgresAdapter)
-	if !ok {
-		Logger.Fatal("postgresAdapter is not of type *utils.PostgresAdapter")
-		return
-	}
-	maxLedgerInDB, err := adapter.GetMaxLedgerSequence(ctx)
+	maxLedgerInDB, err := postgresAdapter.GetMaxLedgerSequence(ctx)
 	if err != nil {
 		Logger.Fatal("Failed to get max ledger sequence from database:", err)
 		return
