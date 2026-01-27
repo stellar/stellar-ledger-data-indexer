@@ -70,8 +70,8 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}
-	postgesAdapter := &utils.PostgresAdapter{DBOperator: dbOperator, Logger: Logger}
-	return postgesAdapter, nil
+	postgresAdapter := &utils.PostgresAdapter{DBOperator: dbOperator, Logger: Logger}
+	return postgresAdapter, nil
 }
 
 func IndexData(config Config) {
@@ -106,7 +106,7 @@ func IndexData(config Config) {
 
 	// If there's data in the database, adjust start ledger
 	if maxLedgerInDB > 0 {
-		// If end ledger is not provided (unbounded mode)
+		// If end ledger is not provided (unbounded mode, endLedger <= 1 per CLI convention)
 		if endLedger <= 1 {
 			// Start from the next ledger after the max in DB
 			startLedger = maxLedgerInDB + 1
