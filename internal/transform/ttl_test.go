@@ -113,10 +113,16 @@ func makeTtlTestOutput() []contract.TtlOutput {
 func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 	var hash xdr.Hash
 	expectedKeyHash := "0000000000000000000000000000000000000000000000000000000000000000"
+	ledgerSeq := xdr.Uint32(10)
+
+	// Simulate multiple changes to the same TTL entry within a single ledger
+	// Each change updates the LiveUntilLedgerSeq value
+	// In practice, this can happen when the same entry is bumped multiple times
+	// within the same ledger by different operations
 
 	// First change: initial update to LiveUntilLedgerSeq = 100
 	preTtlLedgerEntry1 := xdr.LedgerEntry{
-		LastModifiedLedgerSeq: 0,
+		LastModifiedLedgerSeq: ledgerSeq - 1,
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeTtl,
 			Ttl: &xdr.TtlEntry{
@@ -127,7 +133,7 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 	}
 
 	postTtlLedgerEntry1 := xdr.LedgerEntry{
-		LastModifiedLedgerSeq: 1,
+		LastModifiedLedgerSeq: ledgerSeq,
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeTtl,
 			Ttl: &xdr.TtlEntry{
@@ -139,7 +145,7 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 
 	// Second change: another update to the same KeyHash, LiveUntilLedgerSeq = 200
 	preTtlLedgerEntry2 := xdr.LedgerEntry{
-		LastModifiedLedgerSeq: 1,
+		LastModifiedLedgerSeq: ledgerSeq,
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeTtl,
 			Ttl: &xdr.TtlEntry{
@@ -150,7 +156,7 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 	}
 
 	postTtlLedgerEntry2 := xdr.LedgerEntry{
-		LastModifiedLedgerSeq: 2,
+		LastModifiedLedgerSeq: ledgerSeq,
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeTtl,
 			Ttl: &xdr.TtlEntry{
@@ -162,7 +168,7 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 
 	// Third change: final update to the same KeyHash, LiveUntilLedgerSeq = 300
 	preTtlLedgerEntry3 := xdr.LedgerEntry{
-		LastModifiedLedgerSeq: 2,
+		LastModifiedLedgerSeq: ledgerSeq,
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeTtl,
 			Ttl: &xdr.TtlEntry{
@@ -173,7 +179,7 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 	}
 
 	postTtlLedgerEntry3 := xdr.LedgerEntry{
-		LastModifiedLedgerSeq: 3,
+		LastModifiedLedgerSeq: ledgerSeq,
 		Data: xdr.LedgerEntryData{
 			Type: xdr.LedgerEntryTypeTtl,
 			Ttl: &xdr.TtlEntry{
@@ -210,7 +216,7 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 			ScpValue: xdr.StellarValue{
 				CloseTime: 1000,
 			},
-			LedgerSeq: 10,
+			LedgerSeq: ledgerSeq,
 		},
 	}
 
@@ -226,10 +232,10 @@ func TestGetTTLDetailsWithDuplicates(t *testing.T) {
 	expectedOutput := contract.TtlOutput{
 		KeyHash:            expectedKeyHash,
 		LiveUntilLedgerSeq: 300,
-		LastModifiedLedger: 3,
+		LastModifiedLedger: uint32(ledgerSeq),
 		LedgerEntryChange:  1, // Updated entry
 		Deleted:            false,
-		LedgerSequence:     10,
+		LedgerSequence:     uint32(ledgerSeq),
 		ClosedAt:           time.Date(1970, time.January, 1, 0, 16, 40, 0, time.UTC),
 	}
 
