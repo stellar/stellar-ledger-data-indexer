@@ -55,6 +55,18 @@ func NewPostgresSession(ctx context.Context, connStr string) (*DBSession, error)
 	return &DBSession{session: session}, nil
 }
 
+// GetMaxLedgerSequence returns the maximum ledger_sequence from the specified table.
+// Returns 0 if the table is empty or if there's an error.
+func (q *DBSession) GetMaxLedgerSequence(ctx context.Context, tableName string) (uint32, error) {
+	var maxLedger uint32
+	query := fmt.Sprintf("SELECT COALESCE(MAX(ledger_sequence), 0) FROM %s", tableName)
+	err := q.session.GetRaw(ctx, &maxLedger, query)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get max ledger sequence from %s: %w", tableName, err)
+	}
+	return maxLedger, nil
+}
+
 // Extended from https://github.com/stellar/stellar-horizon/blob/main/internal/db2/history/main.go
 func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField string, fields []UpsertField, conditions []UpsertCondition) error {
 	unnestPart := make([]string, 0, len(fields))

@@ -86,6 +86,48 @@ func IndexData(config Config) {
 	}
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
+	// Query the max ledger sequence from postgres
+	maxLedgerInDB, err := postgresAdapter.(*utils.PostgresAdapter).GetMaxLedgerSequence(ctx)
+	if err != nil {
+		Logger.Fatal("Failed to get max ledger sequence from database:", err)
+		return
+	}
+
+	Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
+
+	// Adjust start and end ledgers based on what's already in the database
+	startLedger := config.StartLedger
+	endLedger := config.EndLedger
+
+	// If there's data in the database, adjust start ledger
+	if maxLedgerInDB > 0 {
+		// If end ledger is not provided (unbounded mode)
+		if endLedger <= 1 {
+			// Start from the next ledger after the max in DB
+			startLedger = maxLedgerInDB + 1
+			Logger.Infof("Unbounded mode: Starting from ledger %d (max in DB + 1)", startLedger)
+		} else {
+			// Bounded mode: end ledger is provided
+			if maxLedgerInDB >= endLedger {
+				// All requested ledgers are already ingested
+				Logger.Infof("All ledgers from %d to %d are already ingested (max in DB: %d). Nothing to do.",
+					config.StartLedger, endLedger, maxLedgerInDB)
+				return
+			} else if maxLedgerInDB >= config.StartLedger {
+				// Some ledgers are already ingested, start from where we left off
+				startLedger = maxLedgerInDB + 1
+				Logger.Infof("Bounded mode: Resuming from ledger %d (max in DB + 1) to %d",
+					startLedger, endLedger)
+			} else {
+				// Max in DB is less than requested start, use the requested start
+				Logger.Infof("Bounded mode: Starting from requested ledger %d to %d (max in DB %d is before start)",
+					startLedger, endLedger, maxLedgerInDB)
+			}
+		}
+	} else {
+		Logger.Infof("Database is empty, starting from requested ledger %d", startLedger)
+	}
+
 	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
 	if err != nil {
 		Logger.Fatal(err)
@@ -96,8 +138,8 @@ func IndexData(config Config) {
 		&config.DataStoreConfig,
 		config.StellarCoreConfig.HistoryArchiveUrls,
 		[]utils.Processor{processor},
-		config.StartLedger,
-		config.EndLedger,
+		startLedger,
+		endLedger,
 	)
 	if err != nil {
 		Logger.Fatal(err)
