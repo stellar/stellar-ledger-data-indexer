@@ -14,4 +14,3 @@ formatters:
   enable:
     - gofmt
     - goimports
-
