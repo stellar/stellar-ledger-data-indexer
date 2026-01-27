@@ -58,6 +58,15 @@ func NewPostgresSession(ctx context.Context, connStr string) (*DBSession, error)
 // GetMaxLedgerSequence returns the maximum ledger_sequence from the specified table.
 // Returns 0 if the table is empty or if there's an error.
 func (q *DBSession) GetMaxLedgerSequence(ctx context.Context, tableName string) (uint32, error) {
+	// Validate table name against allowed tables to prevent SQL injection
+	allowedTables := map[string]bool{
+		"contract_data": true,
+		"ttl":           true,
+	}
+	if !allowedTables[tableName] {
+		return 0, fmt.Errorf("invalid table name: %s", tableName)
+	}
+
 	var maxLedger uint32
 	query := fmt.Sprintf("SELECT COALESCE(MAX(ledger_sequence), 0) FROM %s", tableName)
 	err := q.session.GetRaw(ctx, &maxLedger, query)

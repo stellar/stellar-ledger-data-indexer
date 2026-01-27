@@ -87,7 +87,12 @@ func IndexData(config Config) {
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
 	// Query the max ledger sequence from postgres
-	maxLedgerInDB, err := postgresAdapter.(*utils.PostgresAdapter).GetMaxLedgerSequence(ctx)
+	adapter, ok := postgresAdapter.(*utils.PostgresAdapter)
+	if !ok {
+		Logger.Fatal("postgresAdapter is not of type *utils.PostgresAdapter")
+		return
+	}
+	maxLedgerInDB, err := adapter.GetMaxLedgerSequence(ctx)
 	if err != nil {
 		Logger.Fatal("Failed to get max ledger sequence from database:", err)
 		return
