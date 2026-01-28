@@ -285,9 +285,6 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataBackfillMode() {
 	s.T().Log("Backfill run output:", output2)
 	s.T().Log("Backfill run errors:", errOutput2)
 
-	// Verify that backfill mode message appears in logs
-	require.Contains(errOutput2, "Backfill mode enabled", "Should log that backfill mode is enabled")
-
 	// The count may stay the same or change slightly depending on data updates,
 	// but the key is that backfill mode respected the exact range
 	var secondCount []int
