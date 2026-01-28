@@ -93,41 +93,20 @@ func IndexData(config Config) {
 		}
 	}()
 
-	var startLedger, endLedger uint32
-	var maxLedgerInDB uint32
-
-	// In backfill mode, respect the exact start and end ledgers provided
-	if config.Backfill {
-		startLedger = config.StartLedger
-		endLedger = config.EndLedger
-		maxLedgerInDB = 0 // Don't adjust based on database in backfill mode
-		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", startLedger, endLedger)
-	} else {
-		// Query the max ledger sequence from postgres
-		maxLedgerInDB, err = postgresAdapter.GetMaxLedgerSequence(ctx)
-		if err != nil {
-			Logger.Fatal("Failed to get max ledger sequence from database:", err)
-			return
-		}
-
-		Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
-		startLedger = config.StartLedger
-		endLedger = config.EndLedger
-	}
-
 	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
 	if err != nil {
 		Logger.Fatal(err)
 		return
 	}
 
-	reader, err := input.NewLedgerMetadataReaderWithMaxLedger(
+	reader, err := input.NewLedgerMetadataReader(
 		&config.DataStoreConfig,
 		config.StellarCoreConfig.HistoryArchiveUrls,
 		[]utils.Processor{processor},
-		startLedger,
-		endLedger,
-		maxLedgerInDB,
+		config.StartLedger,
+		config.EndLedger,
+		config.Backfill,
+		postgresAdapter,
 	)
 	if err != nil {
 		Logger.Fatal(err)

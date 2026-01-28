@@ -18,24 +18,28 @@ const (
 	UserAgent = "stellar-ledger-data-indexer"
 )
 
+// MaxLedgerProvider defines the interface for querying the maximum ledger sequence from the database
+type MaxLedgerProvider interface {
+	GetMaxLedgerSequence(ctx context.Context) (uint32, error)
+}
+
 type LedgerMetadataReader struct {
 	processors         []utils.Processor
 	historyArchiveURLs []string
 	dataStoreConfig    datastore.DataStoreConfig
 	startLedger        uint32
 	endLedger          uint32
-	maxLedgerInDB      uint32
+	backfill           bool
+	maxLedgerProvider  MaxLedgerProvider
 }
 
 func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 	historyArchiveUrls []string,
-	processors []utils.Processor, startLedger uint32, endLedger uint32) (*LedgerMetadataReader, error) {
-	return NewLedgerMetadataReaderWithMaxLedger(config, historyArchiveUrls, processors, startLedger, endLedger, 0)
-}
-
-func NewLedgerMetadataReaderWithMaxLedger(config *datastore.DataStoreConfig,
-	historyArchiveUrls []string,
-	processors []utils.Processor, startLedger uint32, endLedger uint32, maxLedgerInDB uint32) (*LedgerMetadataReader, error) {
+	processors []utils.Processor,
+	startLedger uint32,
+	endLedger uint32,
+	backfill bool,
+	maxLedgerProvider MaxLedgerProvider) (*LedgerMetadataReader, error) {
 	if config == nil {
 		return nil, errors.New("missing configuration")
 	}
@@ -45,7 +49,8 @@ func NewLedgerMetadataReaderWithMaxLedger(config *datastore.DataStoreConfig,
 		historyArchiveURLs: historyArchiveUrls,
 		startLedger:        startLedger,
 		endLedger:          endLedger,
-		maxLedgerInDB:      maxLedgerInDB,
+		backfill:           backfill,
+		maxLedgerProvider:  maxLedgerProvider,
 	}, nil
 }
 
@@ -55,11 +60,13 @@ func NewLedgerMetadataReaderWithMaxLedger(config *datastore.DataStoreConfig,
 //   - startLedger: requested start ledger (if <= 1, uses latestNetworkLedger)
 //   - endLedger: requested end ledger (if <= 1, creates unbounded range)
 //   - latestNetworkLedger: the latest ledger available on the network
-//   - maxLedgerInDB: the maximum ledger sequence already in the database (use 0 if unknown/not applicable)
+//   - backfill: if true, skips database checks and uses exact start/end ledgers
+//   - maxLedgerProvider: provider to query max ledger from database (can be nil in backfill mode)
+//   - ctx: context for database operations
 //   - Logger: logger for informational messages
 //
-// Returns the ledger range to process, or an error if no processing is needed.
-func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger uint32, maxLedgerInDB uint32, Logger *log.Entry) (ledgerbackend.Range, bool) {
+// Returns the ledger range to process and a boolean indicating if processing should proceed.
+func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger uint32, backfill bool, maxLedgerProvider MaxLedgerProvider, ctx context.Context, Logger *log.Entry) (ledgerbackend.Range, bool) {
 	// Sentinel value for unbounded mode
 	const UnboundedModeSentinel = uint32(1)
 
@@ -68,7 +75,25 @@ func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger ui
 		startLedger = latestNetworkLedger
 	}
 
-	// Apply database-aware start ledger adjustment if maxLedgerInDB is provided
+	var maxLedgerInDB uint32
+
+	// In backfill mode, skip database checks and use exact start/end ledgers
+	if backfill {
+		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", startLedger, endLedger)
+		maxLedgerInDB = 0
+	} else if maxLedgerProvider != nil {
+		// Query the max ledger sequence from the database
+		var err error
+		maxLedgerInDB, err = maxLedgerProvider.GetMaxLedgerSequence(ctx)
+		if err != nil {
+			Logger.Errorf("Failed to get max ledger sequence from database: %v. Proceeding with requested start ledger.", err)
+			maxLedgerInDB = 0
+		} else {
+			Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
+		}
+	}
+
+	// Apply database-aware start ledger adjustment if maxLedgerInDB is available
 	if maxLedgerInDB > 0 {
 		// If end ledger is not provided (unbounded mode)
 		if endLedger <= UnboundedModeSentinel {
@@ -93,8 +118,8 @@ func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger ui
 					startLedger, endLedger, maxLedgerInDB)
 			}
 		}
-	} else {
-		// No database state available, use requested start ledger
+	} else if !backfill {
+		// No database state available and not in backfill mode
 		Logger.Infof("Database is empty or state unknown, starting from requested ledger %d", startLedger)
 	}
 
@@ -126,8 +151,8 @@ func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error
 	}
 
 	// Determine the actual ledger range to process
-	// Use maxLedgerInDB from the struct for database-aware ledger adjustments
-	ledgerRange, shouldProceed := GetLedgerBound(a.startLedger, a.endLedger, latestNetworkLedger, a.maxLedgerInDB, Logger)
+	// GetLedgerBound will query max ledger from database if not in backfill mode
+	ledgerRange, shouldProceed := GetLedgerBound(a.startLedger, a.endLedger, latestNetworkLedger, a.backfill, a.maxLedgerProvider, ctx, Logger)
 	if !shouldProceed {
 		return nil
 	}

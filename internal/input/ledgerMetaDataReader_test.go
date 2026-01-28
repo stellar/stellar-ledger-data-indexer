@@ -1,6 +1,7 @@
 package input
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stellar/go/ingest/ledgerbackend"
@@ -8,14 +9,26 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// mockMaxLedgerProvider is a mock implementation of MaxLedgerProvider for testing
+type mockMaxLedgerProvider struct {
+	maxLedger uint32
+	err       error
+}
+
+func (m *mockMaxLedgerProvider) GetMaxLedgerSequence(ctx context.Context) (uint32, error) {
+	return m.maxLedger, m.err
+}
+
 func TestGetLedgerBound(t *testing.T) {
 	logger := log.New()
+	ctx := context.Background()
 
 	tests := []struct {
 		name                string
 		startLedger         uint32
 		endLedger           uint32
 		latestNetworkLedger uint32
+		backfill            bool
 		maxLedgerInDB       uint32
 		expectedRange       ledgerbackend.Range
 		shouldProceed       bool
@@ -26,6 +39,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         0,
 			endLedger:           1,
 			latestNetworkLedger: 100,
+			backfill:            false,
 			maxLedgerInDB:       0,
 			expectedRange:       ledgerbackend.UnboundedRange(100),
 			shouldProceed:       true,
@@ -35,6 +49,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         1,
 			endLedger:           1,
 			latestNetworkLedger: 100,
+			backfill:            false,
 			maxLedgerInDB:       0,
 			expectedRange:       ledgerbackend.UnboundedRange(100),
 			shouldProceed:       true,
@@ -44,6 +59,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         50,
 			endLedger:           0,
 			latestNetworkLedger: 100,
+			backfill:            false,
 			maxLedgerInDB:       0,
 			expectedRange:       ledgerbackend.UnboundedRange(50),
 			shouldProceed:       true,
@@ -53,6 +69,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         50,
 			endLedger:           150,
 			latestNetworkLedger: 100,
+			backfill:            false,
 			maxLedgerInDB:       0,
 			expectedRange:       ledgerbackend.UnboundedRange(50),
 			shouldProceed:       true,
@@ -62,6 +79,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         50,
 			endLedger:           70,
 			latestNetworkLedger: 100,
+			backfill:            false,
 			maxLedgerInDB:       0,
 			expectedRange:       ledgerbackend.BoundedRange(50, 70),
 			shouldProceed:       true,
@@ -71,6 +89,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         2,
 			endLedger:           1, // unbounded
 			latestNetworkLedger: 200,
+			backfill:            false,
 			maxLedgerInDB:       0,
 			expectedRange:       ledgerbackend.UnboundedRange(2),
 			shouldProceed:       true,
@@ -80,6 +99,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         2,
 			endLedger:           1, // unbounded
 			latestNetworkLedger: 200,
+			backfill:            false,
 			maxLedgerInDB:       100,
 			expectedRange:       ledgerbackend.UnboundedRange(100),
 			shouldProceed:       true,
@@ -89,6 +109,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         2,
 			endLedger:           50,
 			latestNetworkLedger: 200,
+			backfill:            false,
 			maxLedgerInDB:       100,
 			expectedRange:       ledgerbackend.Range{},
 			shouldProceed:       false,
@@ -98,6 +119,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         2,
 			endLedger:           100,
 			latestNetworkLedger: 200,
+			backfill:            false,
 			maxLedgerInDB:       100,
 			expectedRange:       ledgerbackend.Range{},
 			shouldProceed:       false,
@@ -107,6 +129,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         2,
 			endLedger:           100,
 			latestNetworkLedger: 200,
+			backfill:            false,
 			maxLedgerInDB:       50,
 			expectedRange:       ledgerbackend.BoundedRange(50, 100),
 			shouldProceed:       true,
@@ -116,6 +139,7 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         100,
 			endLedger:           200,
 			latestNetworkLedger: 300,
+			backfill:            false,
 			maxLedgerInDB:       50,
 			expectedRange:       ledgerbackend.BoundedRange(100, 200),
 			shouldProceed:       true,
@@ -125,15 +149,40 @@ func TestGetLedgerBound(t *testing.T) {
 			startLedger:         50,
 			endLedger:           100,
 			latestNetworkLedger: 200,
+			backfill:            false,
 			maxLedgerInDB:       50,
 			expectedRange:       ledgerbackend.BoundedRange(50, 100),
+			shouldProceed:       true,
+		},
+		{
+			name:                "Backfill mode - uses exact range",
+			startLedger:         10,
+			endLedger:           100,
+			latestNetworkLedger: 200,
+			backfill:            true,
+			maxLedgerInDB:       50, // Should be ignored in backfill mode
+			expectedRange:       ledgerbackend.BoundedRange(10, 100),
+			shouldProceed:       true,
+		},
+		{
+			name:                "Backfill mode unbounded - uses exact start",
+			startLedger:         10,
+			endLedger:           1,
+			latestNetworkLedger: 200,
+			backfill:            true,
+			maxLedgerInDB:       50, // Should be ignored in backfill mode
+			expectedRange:       ledgerbackend.UnboundedRange(10),
 			shouldProceed:       true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, proceed := GetLedgerBound(tt.startLedger, tt.endLedger, tt.latestNetworkLedger, tt.maxLedgerInDB, logger)
+			var provider MaxLedgerProvider
+			if !tt.backfill {
+				provider = &mockMaxLedgerProvider{maxLedger: tt.maxLedgerInDB}
+			}
+			result, proceed := GetLedgerBound(tt.startLedger, tt.endLedger, tt.latestNetworkLedger, tt.backfill, provider, ctx, logger)
 			assert.Equal(t, tt.shouldProceed, proceed, "shouldProceed mismatch")
 			if proceed {
 				assert.Equal(t, tt.expectedRange, result, "Range mismatch")
