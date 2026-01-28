@@ -124,11 +124,12 @@ func IndexData(config Config) {
 	}
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
-	startLedger := config.StartLedger
-	endLedger := config.EndLedger
+	var startLedger, endLedger uint32
 
 	// In backfill mode, respect the exact start and end ledgers provided
 	if config.Backfill {
+		startLedger = config.StartLedger
+		endLedger = config.EndLedger
 		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", startLedger, endLedger)
 	} else {
 		// Query the max ledger sequence from postgres
@@ -146,6 +147,7 @@ func IndexData(config Config) {
 		if !shouldProceed {
 			return
 		}
+		endLedger = config.EndLedger
 	}
 
 	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)

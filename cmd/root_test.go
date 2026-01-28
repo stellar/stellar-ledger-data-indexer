@@ -269,8 +269,8 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataBackfillMode() {
 	require.NoError(sess.SelectRaw(context.Background(), &maxLedgerAfterFirst, `SELECT MAX(ledger_sequence) FROM contract_data;`))
 	require.Equal(59561997, maxLedgerAfterFirst[0], "Max ledger should be 59561997")
 
-	// Second ingestion: WITH backfill mode, re-ingest the same range 59561994 to 59561997
-	// In backfill mode, it should NOT skip based on max ledger and should process the range again
+	// Second ingestion: WITH backfill mode, specify the same range 59561994 to 59561997
+	// Backfill mode respects the exact range regardless of database state (database upsert logic handles any duplicates)
 	rootCmd2 := DefineCommands()
 	var errWriter2 bytes.Buffer
 	var outWriter2 bytes.Buffer
