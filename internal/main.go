@@ -124,21 +124,29 @@ func IndexData(config Config) {
 	}
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
-	// Query the max ledger sequence from postgres
-	maxLedgerInDB, err := postgresAdapter.GetMaxLedgerSequence(ctx)
-	if err != nil {
-		Logger.Fatal("Failed to get max ledger sequence from database:", err)
-		return
-	}
-
-	Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
-
-	// Determine the appropriate start ledger
-	startLedger, shouldProceed := DetermineStartLedger(config.StartLedger, config.EndLedger, maxLedgerInDB)
-	if !shouldProceed {
-		return
-	}
+	startLedger := config.StartLedger
 	endLedger := config.EndLedger
+
+	// In backfill mode, respect the exact start and end ledgers provided
+	if config.Backfill {
+		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", startLedger, endLedger)
+	} else {
+		// Query the max ledger sequence from postgres
+		maxLedgerInDB, err := postgresAdapter.GetMaxLedgerSequence(ctx)
+		if err != nil {
+			Logger.Fatal("Failed to get max ledger sequence from database:", err)
+			return
+		}
+
+		Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
+
+		// Determine the appropriate start ledger
+		var shouldProceed bool
+		startLedger, shouldProceed = DetermineStartLedger(config.StartLedger, config.EndLedger, maxLedgerInDB)
+		if !shouldProceed {
+			return
+		}
+	}
 
 	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
 	if err != nil {

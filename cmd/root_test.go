@@ -239,3 +239,63 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataResumeFromMaxLedger() {
 	require.NoError(sess.SelectRaw(context.Background(), &thirdCount, `SELECT count(*) FROM contract_data;`))
 	require.Equal(secondCount[0], thirdCount[0], "Count should not change when all data is already present")
 }
+
+func (s *LedgerDataIndexerTestSuite) TestContractDataBackfillMode() {
+	require := s.Require()
+
+	// Clean the contract_data table to ensure test isolation
+	sess := &db.Session{DB: s.db.Open()}
+	defer sess.DB.Close()
+	_, err := sess.ExecRaw(context.Background(), "TRUNCATE TABLE contract_data;")
+	require.NoError(err, "Failed to truncate contract_data table")
+
+	// First ingestion: load ledgers 59561994 to 59561997 WITHOUT backfill mode
+	rootCmd := DefineCommands()
+	var errWriter bytes.Buffer
+	var outWriter bytes.Buffer
+	rootCmd.SetErr(&errWriter)
+	rootCmd.SetOut(&outWriter)
+	rootCmd.SetArgs([]string{"append", "--start", "59561994", "--end", "59561997", "--dataset", "contract_data", "--config-file", s.tempConfigFile})
+	err = rootCmd.ExecuteContext(s.ctx)
+	require.NoError(err)
+
+	// Verify first ingestion count
+	var firstCount []int
+	require.NoError(sess.SelectRaw(context.Background(), &firstCount, `SELECT count(*) FROM contract_data;`))
+	s.T().Logf("After first ingestion: %d records", firstCount[0])
+	require.Greater(firstCount[0], 0, "Should have ingested data from first run")
+
+	var maxLedgerAfterFirst []int
+	require.NoError(sess.SelectRaw(context.Background(), &maxLedgerAfterFirst, `SELECT MAX(ledger_sequence) FROM contract_data;`))
+	require.Equal(59561997, maxLedgerAfterFirst[0], "Max ledger should be 59561997")
+
+	// Second ingestion: WITH backfill mode, re-ingest the same range 59561994 to 59561997
+	// In backfill mode, it should NOT skip based on max ledger and should process the range again
+	rootCmd2 := DefineCommands()
+	var errWriter2 bytes.Buffer
+	var outWriter2 bytes.Buffer
+	rootCmd2.SetErr(&errWriter2)
+	rootCmd2.SetOut(&outWriter2)
+	rootCmd2.SetArgs([]string{"append", "--start", "59561994", "--end", "59561997", "--dataset", "contract_data", "--config-file", s.tempConfigFile, "--backfill"})
+	err = rootCmd2.ExecuteContext(s.ctx)
+	require.NoError(err)
+
+	output2 := outWriter2.String()
+	errOutput2 := errWriter2.String()
+	s.T().Log("Backfill run output:", output2)
+	s.T().Log("Backfill run errors:", errOutput2)
+
+	// Verify that backfill mode message appears in logs
+	require.Contains(errOutput2, "Backfill mode enabled", "Should log that backfill mode is enabled")
+
+	// The count may stay the same or change slightly depending on data updates,
+	// but the key is that backfill mode respected the exact range
+	var secondCount []int
+	require.NoError(sess.SelectRaw(context.Background(), &secondCount, `SELECT count(*) FROM contract_data;`))
+	s.T().Logf("After backfill ingestion: %d records", secondCount[0])
+
+	// Verify max ledger is still within the requested range (should not exceed 59561997)
+	var maxLedgerAfterBackfill []int
+	require.NoError(sess.SelectRaw(context.Background(), &maxLedgerAfterBackfill, `SELECT MAX(ledger_sequence) FROM contract_data;`))
+	require.Equal(59561997, maxLedgerAfterBackfill[0], "Max ledger should still be 59561997 after backfill")
+}
