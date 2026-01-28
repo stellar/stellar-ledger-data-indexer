@@ -49,7 +49,6 @@ func TestDetermineStartLedger(t *testing.T) {
 			requestedStart: 2,
 			requestedEnd:   50,
 			maxLedgerInDB:  100,
-			expectedStart:  0, // doesn't matter
 			shouldProceed:  false,
 		},
 		{
@@ -57,7 +56,6 @@ func TestDetermineStartLedger(t *testing.T) {
 			requestedStart: 2,
 			requestedEnd:   100,
 			maxLedgerInDB:  100,
-			expectedStart:  0, // doesn't matter
 			shouldProceed:  false,
 		},
 		{
@@ -89,10 +87,10 @@ func TestDetermineStartLedger(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			start, proceed := DetermineStartLedger(tt.requestedStart, tt.requestedEnd, tt.maxLedgerInDB)
+			assert.Equal(t, tt.shouldProceed, proceed, "shouldProceed mismatch")
 			if proceed {
 				assert.Equal(t, tt.expectedStart, start, "Start ledger mismatch")
 			}
-			assert.Equal(t, tt.shouldProceed, proceed, "shouldProceed mismatch")
 		})
 	}
 }

@@ -170,6 +170,12 @@ func (s *LedgerDataIndexerTestSuite) TestTTLDataAppend() {
 func (s *LedgerDataIndexerTestSuite) TestContractDataResumeFromMaxLedger() {
 	require := s.Require()
 
+	// Clean the contract_data table to ensure test isolation
+	sess := &db.Session{DB: s.db.Open()}
+	defer sess.DB.Close()
+	_, err := sess.ExecRaw(context.Background(), "TRUNCATE TABLE contract_data;")
+	require.NoError(err, "Failed to truncate contract_data table")
+
 	// First ingestion: load ledgers 59561994 to 59561997
 	rootCmd := DefineCommands()
 	var errWriter bytes.Buffer
@@ -177,11 +183,8 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataResumeFromMaxLedger() {
 	rootCmd.SetErr(&errWriter)
 	rootCmd.SetOut(&outWriter)
 	rootCmd.SetArgs([]string{"append", "--start", "59561994", "--end", "59561997", "--dataset", "contract_data", "--config-file", s.tempConfigFile})
-	err := rootCmd.ExecuteContext(s.ctx)
+	err = rootCmd.ExecuteContext(s.ctx)
 	require.NoError(err)
-
-	sess := &db.Session{DB: s.db.Open()}
-	defer sess.DB.Close()
 
 	// Verify first ingestion count
 	var firstCount []int
@@ -189,8 +192,8 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataResumeFromMaxLedger() {
 	s.T().Logf("After first ingestion: %d records", firstCount[0])
 	require.Greater(firstCount[0], 0, "Should have ingested data from first run")
 
-	// Second ingestion: request from start ledger 2 (should be ignored) to 59562000
-	// The system should automatically resume from maxLedger (59561997) instead of 2
+	// Second ingestion: request from start ledger 2 to 59562000
+	// The system should automatically resume from maxLedger (59561997) since data already exists beyond the requested start
 	rootCmd2 := DefineCommands()
 	var errWriter2 bytes.Buffer
 	var outWriter2 bytes.Buffer

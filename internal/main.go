@@ -87,7 +87,7 @@ func DetermineStartLedger(requestedStart, requestedEnd, maxLedgerInDB uint32) (s
 			Logger.Infof("Unbounded mode: Starting from ledger %d (max in DB)", startLedger)
 			return startLedger, true
 		}
-		
+
 		// Bounded mode: end ledger is provided
 		if maxLedgerInDB >= requestedEnd {
 			// All requested ledgers are already ingested
@@ -106,7 +106,7 @@ func DetermineStartLedger(requestedStart, requestedEnd, maxLedgerInDB uint32) (s
 			requestedStart, requestedEnd, maxLedgerInDB)
 		return requestedStart, true
 	}
-	
+
 	// Database is empty, use requested start ledger
 	Logger.Infof("Database is empty, starting from requested ledger %d", requestedStart)
 	return requestedStart, true
