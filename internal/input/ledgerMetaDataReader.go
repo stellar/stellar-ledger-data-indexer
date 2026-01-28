@@ -24,11 +24,18 @@ type LedgerMetadataReader struct {
 	dataStoreConfig    datastore.DataStoreConfig
 	startLedger        uint32
 	endLedger          uint32
+	maxLedgerInDB      uint32
 }
 
 func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 	historyArchiveUrls []string,
 	processors []utils.Processor, startLedger uint32, endLedger uint32) (*LedgerMetadataReader, error) {
+	return NewLedgerMetadataReaderWithMaxLedger(config, historyArchiveUrls, processors, startLedger, endLedger, 0)
+}
+
+func NewLedgerMetadataReaderWithMaxLedger(config *datastore.DataStoreConfig,
+	historyArchiveUrls []string,
+	processors []utils.Processor, startLedger uint32, endLedger uint32, maxLedgerInDB uint32) (*LedgerMetadataReader, error) {
 	if config == nil {
 		return nil, errors.New("missing configuration")
 	}
@@ -38,27 +45,68 @@ func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 		historyArchiveURLs: historyArchiveUrls,
 		startLedger:        startLedger,
 		endLedger:          endLedger,
+		maxLedgerInDB:      maxLedgerInDB,
 	}, nil
 }
 
-func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger uint32, Logger *log.Entry) ledgerbackend.Range {
-	var ledgerRange ledgerbackend.Range
+// GetLedgerBound determines the ledger range to process, incorporating database state awareness.
+// It combines start ledger determination logic with ledger bound calculation.
+// Parameters:
+//   - startLedger: requested start ledger (if <= 1, uses latestNetworkLedger)
+//   - endLedger: requested end ledger (if <= 1, creates unbounded range)
+//   - latestNetworkLedger: the latest ledger available on the network
+//   - maxLedgerInDB: the maximum ledger sequence already in the database (use 0 if unknown/not applicable)
+//   - Logger: logger for informational messages
+//
+// Returns the ledger range to process, or an error if no processing is needed.
+func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger uint32, maxLedgerInDB uint32, Logger *log.Entry) (ledgerbackend.Range, bool) {
+	// Sentinel value for unbounded mode
+	const UnboundedModeSentinel = uint32(1)
 
 	// If no start ledger specified, start from the latest ledger
 	if startLedger <= 1 {
 		startLedger = latestNetworkLedger
 	}
 
+	// Apply database-aware start ledger adjustment if maxLedgerInDB is provided
+	if maxLedgerInDB > 0 {
+		// If end ledger is not provided (unbounded mode)
+		if endLedger <= UnboundedModeSentinel {
+			// Start from the max ledger in DB (it may not have all entries ingested)
+			startLedger = maxLedgerInDB
+			Logger.Infof("Unbounded mode: Starting from ledger %d (max in DB)", startLedger)
+		} else {
+			// Bounded mode: end ledger is provided
+			if maxLedgerInDB >= endLedger {
+				// All requested ledgers are already ingested
+				Logger.Infof("All ledgers from %d to %d are already ingested (max in DB: %d). Nothing to do.",
+					startLedger, endLedger, maxLedgerInDB)
+				return ledgerbackend.Range{}, false
+			} else if maxLedgerInDB >= startLedger {
+				// Some ledgers are already ingested, start from where we left off
+				startLedger = maxLedgerInDB
+				Logger.Infof("Bounded mode: Resuming from ledger %d (max in DB) to %d",
+					startLedger, endLedger)
+			} else {
+				// Max in DB is less than requested start, use the requested start
+				Logger.Infof("Bounded mode: Starting from requested ledger %d to %d (max in DB %d is before start)",
+					startLedger, endLedger, maxLedgerInDB)
+			}
+		}
+	} else {
+		// No database state available, use requested start ledger
+		Logger.Infof("Database is empty or state unknown, starting from requested ledger %d", startLedger)
+	}
+
 	// If no end ledger specified, or it's greater than the latest ledger,
 	// use an unbounded range from the start ledger
-	if endLedger <= 1 || endLedger > latestNetworkLedger {
+	if endLedger <= UnboundedModeSentinel || endLedger > latestNetworkLedger {
 		Logger.Infof("Starting at ledger %v ...\n", startLedger)
-		ledgerRange = ledgerbackend.UnboundedRange(startLedger)
-	} else {
-		Logger.Infof("Processing ledgers from %d to %d\n", startLedger, endLedger)
-		ledgerRange = ledgerbackend.BoundedRange(startLedger, endLedger)
+		return ledgerbackend.UnboundedRange(startLedger), true
 	}
-	return ledgerRange
+
+	Logger.Infof("Processing ledgers from %d to %d\n", startLedger, endLedger)
+	return ledgerbackend.BoundedRange(startLedger, endLedger), true
 }
 
 func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error {
@@ -78,7 +126,11 @@ func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error
 	}
 
 	// Determine the actual ledger range to process
-	ledgerRange := GetLedgerBound(a.startLedger, a.endLedger, latestNetworkLedger, Logger)
+	// Use maxLedgerInDB from the struct for database-aware ledger adjustments
+	ledgerRange, shouldProceed := GetLedgerBound(a.startLedger, a.endLedger, latestNetworkLedger, a.maxLedgerInDB, Logger)
+	if !shouldProceed {
+		return nil
+	}
 
 	pubConfig := ingest.PublisherConfig{
 		DataStoreConfig:       a.dataStoreConfig,

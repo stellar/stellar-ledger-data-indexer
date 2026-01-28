@@ -74,44 +74,6 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 	return postgresAdapter, nil
 }
 
-// DetermineStartLedger calculates the appropriate start ledger based on the max ledger in the database.
-// It returns the adjusted start ledger and a boolean indicating if ingestion should proceed.
-// The boolean is false when all requested ledgers are already ingested (bounded mode only).
-func DetermineStartLedger(requestedStart, requestedEnd, maxLedgerInDB uint32) (startLedger uint32, shouldProceed bool) {
-	// If there's data in the database, adjust start ledger
-	if maxLedgerInDB > 0 {
-		// If end ledger is not provided (unbounded mode)
-		if requestedEnd <= UnboundedModeSentinel {
-			// Start from the max ledger in DB (it may not have all entries ingested)
-			startLedger = maxLedgerInDB
-			Logger.Infof("Unbounded mode: Starting from ledger %d (max in DB)", startLedger)
-			return startLedger, true
-		}
-
-		// Bounded mode: end ledger is provided
-		if maxLedgerInDB >= requestedEnd {
-			// All requested ledgers are already ingested
-			Logger.Infof("All ledgers from %d to %d are already ingested (max in DB: %d). Nothing to do.",
-				requestedStart, requestedEnd, maxLedgerInDB)
-			return 0, false
-		} else if maxLedgerInDB >= requestedStart {
-			// Some ledgers are already ingested, start from where we left off
-			startLedger = maxLedgerInDB
-			Logger.Infof("Bounded mode: Resuming from ledger %d (max in DB) to %d",
-				startLedger, requestedEnd)
-			return startLedger, true
-		}
-		// Max in DB is less than requested start, use the requested start
-		Logger.Infof("Bounded mode: Starting from requested ledger %d to %d (max in DB %d is before start)",
-			requestedStart, requestedEnd, maxLedgerInDB)
-		return requestedStart, true
-	}
-
-	// Database is empty, use requested start ledger
-	Logger.Infof("Database is empty, starting from requested ledger %d", requestedStart)
-	return requestedStart, true
-}
-
 func IndexData(config Config) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
@@ -132,28 +94,24 @@ func IndexData(config Config) {
 	}()
 
 	var startLedger, endLedger uint32
+	var maxLedgerInDB uint32
 
 	// In backfill mode, respect the exact start and end ledgers provided
 	if config.Backfill {
 		startLedger = config.StartLedger
 		endLedger = config.EndLedger
+		maxLedgerInDB = 0 // Don't adjust based on database in backfill mode
 		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", startLedger, endLedger)
 	} else {
 		// Query the max ledger sequence from postgres
-		maxLedgerInDB, err := postgresAdapter.GetMaxLedgerSequence(ctx)
+		maxLedgerInDB, err = postgresAdapter.GetMaxLedgerSequence(ctx)
 		if err != nil {
 			Logger.Fatal("Failed to get max ledger sequence from database:", err)
 			return
 		}
 
 		Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
-
-		// Determine the appropriate start ledger
-		var shouldProceed bool
-		startLedger, shouldProceed = DetermineStartLedger(config.StartLedger, config.EndLedger, maxLedgerInDB)
-		if !shouldProceed {
-			return
-		}
+		startLedger = config.StartLedger
 		endLedger = config.EndLedger
 	}
 
@@ -163,12 +121,13 @@ func IndexData(config Config) {
 		return
 	}
 
-	reader, err := input.NewLedgerMetadataReader(
+	reader, err := input.NewLedgerMetadataReaderWithMaxLedger(
 		&config.DataStoreConfig,
 		config.StellarCoreConfig.HistoryArchiveUrls,
 		[]utils.Processor{processor},
 		startLedger,
 		endLedger,
+		maxLedgerInDB,
 	)
 	if err != nil {
 		Logger.Fatal(err)
