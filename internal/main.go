@@ -124,6 +124,13 @@ func IndexData(config Config) {
 	}
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
+	// Ensure adapters are closed on all exit paths
+	defer func() {
+		for _, adapter := range outboundAdapters {
+			adapter.Close()
+		}
+	}()
+
 	var startLedger, endLedger uint32
 
 	// In backfill mode, respect the exact start and end ledgers provided
@@ -174,10 +181,4 @@ func IndexData(config Config) {
 	} else {
 		Logger.Info("ingestion pipeline ended successfully")
 	}
-
-	defer func() {
-		for _, adapter := range outboundAdapters {
-			adapter.Close()
-		}
-	}()
 }
