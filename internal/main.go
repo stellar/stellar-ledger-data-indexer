@@ -93,6 +93,21 @@ func IndexData(config Config) {
 		}
 	}()
 
+	// Query max ledger sequence from database if not in backfill mode
+	var maxLedgerInDB uint32
+	if config.Backfill {
+		maxLedgerInDB = 0
+		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", config.StartLedger, config.EndLedger)
+	} else {
+		maxLedgerInDB, err = postgresAdapter.GetMaxLedgerSequence(ctx)
+		if err != nil {
+			Logger.Errorf("Failed to get max ledger sequence from database: %v. Proceeding with requested start ledger.", err)
+			maxLedgerInDB = 0
+		} else {
+			Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
+		}
+	}
+
 	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
 	if err != nil {
 		Logger.Fatal(err)
@@ -106,7 +121,7 @@ func IndexData(config Config) {
 		config.StartLedger,
 		config.EndLedger,
 		config.Backfill,
-		postgresAdapter,
+		maxLedgerInDB,
 	)
 	if err != nil {
 		Logger.Fatal(err)

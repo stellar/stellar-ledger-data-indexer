@@ -1,7 +1,6 @@
 package input
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stellar/go/ingest/ledgerbackend"
@@ -9,19 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// mockMaxLedgerProvider is a mock implementation of MaxLedgerProvider for testing
-type mockMaxLedgerProvider struct {
-	maxLedger uint32
-	err       error
-}
-
-func (m *mockMaxLedgerProvider) GetMaxLedgerSequence(ctx context.Context) (uint32, error) {
-	return m.maxLedger, m.err
-}
-
 func TestGetLedgerBound(t *testing.T) {
 	logger := log.New()
-	ctx := context.Background()
 
 	tests := []struct {
 		name                string
@@ -178,11 +166,7 @@ func TestGetLedgerBound(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var provider MaxLedgerProvider
-			if !tt.backfill {
-				provider = &mockMaxLedgerProvider{maxLedger: tt.maxLedgerInDB}
-			}
-			result, proceed := GetLedgerBound(tt.startLedger, tt.endLedger, tt.latestNetworkLedger, tt.backfill, provider, ctx, logger)
+			result, proceed := GetLedgerBound(tt.startLedger, tt.endLedger, tt.latestNetworkLedger, tt.backfill, tt.maxLedgerInDB, logger)
 			assert.Equal(t, tt.shouldProceed, proceed, "shouldProceed mismatch")
 			if proceed {
 				assert.Equal(t, tt.expectedRange, result, "Range mismatch")
