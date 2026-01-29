@@ -49,16 +49,6 @@ func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 	}, nil
 }
 
-// GetLedgerBound determines the ledger range to process, incorporating database state awareness.
-// It combines start ledger determination logic with ledger bound calculation.
-// Parameters:
-//   - startLedger: requested start ledger
-//   - endLedger: requested end ledger (if <= 1, creates unbounded range)
-//   - latestNetworkLedger: the latest ledger available on the network
-//   - backfill: if true, uses exact start/end ledgers without database state checks
-//   - maxLedgerInDB: the maximum ledger sequence already in the database (use 0 if unknown)
-//   - Logger: logger for informational messages
-//
 // Returns the ledger range to process and a boolean indicating if processing should proceed.
 func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger uint32, backfill bool, maxLedgerInDB uint32, logger *log.Entry) (ledgerbackend.Range, bool) {
 	const UnboundedSentinel = uint32(1)
