@@ -22,8 +22,9 @@ func TestGetLedgerBound(t *testing.T) {
 		shouldProceed       bool
 		description         string
 	}{
+		// Database empty, non-backfill mode tests
 		{
-			name:                "start_ledger_0_uses_latest",
+			name:                "DB empty, start <= 1, unbounded - use latest network",
 			startLedger:         0,
 			endLedger:           1,
 			latestNetworkLedger: 100,
@@ -33,7 +34,7 @@ func TestGetLedgerBound(t *testing.T) {
 			shouldProceed:       true,
 		},
 		{
-			name:                "start_ledger_1_uses_latest",
+			name:                "DB empty, start <= 1, unbounded - use latest network (start=1)",
 			startLedger:         1,
 			endLedger:           1,
 			latestNetworkLedger: 100,
@@ -43,7 +44,7 @@ func TestGetLedgerBound(t *testing.T) {
 			shouldProceed:       true,
 		},
 		{
-			name:                "no_end_ledger_unbounded",
+			name:                "DB empty, start < latest, unbounded - use requested start",
 			startLedger:         50,
 			endLedger:           0,
 			latestNetworkLedger: 100,
@@ -53,17 +54,7 @@ func TestGetLedgerBound(t *testing.T) {
 			shouldProceed:       true,
 		},
 		{
-			name:                "end_ledger_greater_than_latest_unbounded",
-			startLedger:         50,
-			endLedger:           150,
-			latestNetworkLedger: 100,
-			backfill:            false,
-			maxLedgerInDB:       0,
-			expectedRange:       ledgerbackend.UnboundedRange(50),
-			shouldProceed:       true,
-		},
-		{
-			name:                "bounded_range",
+			name:                "DB empty, start < latest, bounded - use requested start",
 			startLedger:         50,
 			endLedger:           70,
 			latestNetworkLedger: 100,
@@ -73,17 +64,19 @@ func TestGetLedgerBound(t *testing.T) {
 			shouldProceed:       true,
 		},
 		{
-			name:                "Empty database - use requested start",
-			startLedger:         2,
-			endLedger:           1, // unbounded
-			latestNetworkLedger: 200,
+			name:                "DB empty, start > latest - error",
+			startLedger:         150,
+			endLedger:           200,
+			latestNetworkLedger: 100,
 			backfill:            false,
 			maxLedgerInDB:       0,
-			expectedRange:       ledgerbackend.UnboundedRange(2),
-			shouldProceed:       true,
+			expectedRange:       ledgerbackend.Range{},
+			shouldProceed:       false,
 		},
+
+		// Database has data, non-backfill mode tests
 		{
-			name:                "Unbounded mode - resume from max ledger",
+			name:                "DB has data, start < max DB, unbounded - use max DB",
 			startLedger:         2,
 			endLedger:           1, // unbounded
 			latestNetworkLedger: 200,
@@ -93,7 +86,17 @@ func TestGetLedgerBound(t *testing.T) {
 			shouldProceed:       true,
 		},
 		{
-			name:                "Bounded mode - all data ingested",
+			name:                "DB has data, start >= max DB, unbounded - use requested start",
+			startLedger:         100,
+			endLedger:           1, // unbounded
+			latestNetworkLedger: 200,
+			backfill:            false,
+			maxLedgerInDB:       50,
+			expectedRange:       ledgerbackend.UnboundedRange(100),
+			shouldProceed:       true,
+		},
+		{
+			name:                "DB has data, start < max DB, bounded, max >= end - nothing to do",
 			startLedger:         2,
 			endLedger:           50,
 			latestNetworkLedger: 200,
@@ -103,7 +106,7 @@ func TestGetLedgerBound(t *testing.T) {
 			shouldProceed:       false,
 		},
 		{
-			name:                "Bounded mode - exact match, all data ingested",
+			name:                "DB has data, start < max DB, bounded, max == end - nothing to do",
 			startLedger:         2,
 			endLedger:           100,
 			latestNetworkLedger: 200,
@@ -113,7 +116,7 @@ func TestGetLedgerBound(t *testing.T) {
 			shouldProceed:       false,
 		},
 		{
-			name:                "Bounded mode - partial data, resume from max",
+			name:                "DB has data, start < max DB, bounded, max < end - resume from max",
 			startLedger:         2,
 			endLedger:           100,
 			latestNetworkLedger: 200,
@@ -123,7 +126,7 @@ func TestGetLedgerBound(t *testing.T) {
 			shouldProceed:       true,
 		},
 		{
-			name:                "Bounded mode - max in DB before start, use requested start",
+			name:                "DB has data, start >= max DB, bounded - use requested start",
 			startLedger:         100,
 			endLedger:           200,
 			latestNetworkLedger: 300,
@@ -133,7 +136,7 @@ func TestGetLedgerBound(t *testing.T) {
 			shouldProceed:       true,
 		},
 		{
-			name:                "Bounded mode - max equals start, resume from max",
+			name:                "DB has data, start == max DB, bounded - use requested start",
 			startLedger:         50,
 			endLedger:           100,
 			latestNetworkLedger: 200,
@@ -142,8 +145,10 @@ func TestGetLedgerBound(t *testing.T) {
 			expectedRange:       ledgerbackend.BoundedRange(50, 100),
 			shouldProceed:       true,
 		},
+
+		// Backfill mode tests
 		{
-			name:                "Backfill mode - uses exact range",
+			name:                "Backfill, bounded - uses exact range",
 			startLedger:         10,
 			endLedger:           100,
 			latestNetworkLedger: 200,
@@ -153,13 +158,23 @@ func TestGetLedgerBound(t *testing.T) {
 			shouldProceed:       true,
 		},
 		{
-			name:                "Backfill mode unbounded - uses exact start",
+			name:                "Backfill, unbounded - uses exact start",
 			startLedger:         10,
 			endLedger:           1,
 			latestNetworkLedger: 200,
 			backfill:            true,
 			maxLedgerInDB:       50, // Should be ignored in backfill mode
 			expectedRange:       ledgerbackend.UnboundedRange(10),
+			shouldProceed:       true,
+		},
+		{
+			name:                "Backfill, start <= 1, unbounded - use latest network",
+			startLedger:         0,
+			endLedger:           1,
+			latestNetworkLedger: 200,
+			backfill:            true,
+			maxLedgerInDB:       50, // Should be ignored in backfill mode
+			expectedRange:       ledgerbackend.UnboundedRange(200),
 			shouldProceed:       true,
 		},
 	}

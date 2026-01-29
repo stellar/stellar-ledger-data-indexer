@@ -52,11 +52,11 @@ func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 // GetLedgerBound determines the ledger range to process, incorporating database state awareness.
 // It combines start ledger determination logic with ledger bound calculation.
 // Parameters:
-//   - startLedger: requested start ledger (if <= 1, uses latestNetworkLedger)
+//   - startLedger: requested start ledger
 //   - endLedger: requested end ledger (if <= 1, creates unbounded range)
 //   - latestNetworkLedger: the latest ledger available on the network
-//   - backfill: if true, skips database state and uses exact start/end ledgers
-//   - maxLedgerInDB: the maximum ledger sequence already in the database (use 0 if unknown/backfill mode)
+//   - backfill: if true, uses exact start/end ledgers without database state checks
+//   - maxLedgerInDB: the maximum ledger sequence already in the database (use 0 if unknown)
 //   - Logger: logger for informational messages
 //
 // Returns the ledger range to process and a boolean indicating if processing should proceed.
@@ -64,56 +64,77 @@ func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger ui
 	// Sentinel value for unbounded mode
 	const UnboundedModeSentinel = uint32(1)
 
-	// If no start ledger specified, start from the latest ledger
-	if startLedger <= 1 {
-		startLedger = latestNetworkLedger
-	}
+	// Determine if this is unbounded mode
+	isUnbounded := endLedger <= UnboundedModeSentinel
 
-	// In backfill mode, skip database state checks and use exact start/end ledgers
 	if backfill {
-		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", startLedger, endLedger)
-		maxLedgerInDB = 0
-	}
+		// Backfill mode: use given start and end ledger
+		Logger.Infof("Backfill mode enabled")
 
-	// Apply database-aware start ledger adjustment if maxLedgerInDB is available
-	if maxLedgerInDB > 0 {
-		// If end ledger is not provided (unbounded mode)
-		if endLedger <= UnboundedModeSentinel {
-			// Start from the max ledger in DB (it may not have all entries ingested)
-			startLedger = maxLedgerInDB
-			Logger.Infof("Unbounded mode: Starting from ledger %d (max in DB)", startLedger)
-		} else {
-			// Bounded mode: end ledger is provided
-			if maxLedgerInDB >= endLedger {
-				// All requested ledgers are already ingested
-				Logger.Infof("All ledgers from %d to %d are already ingested (max in DB: %d). Nothing to do.",
-					startLedger, endLedger, maxLedgerInDB)
-				return ledgerbackend.Range{}, false
-			} else if maxLedgerInDB >= startLedger {
-				// Some ledgers are already ingested, start from where we left off
-				startLedger = maxLedgerInDB
-				Logger.Infof("Bounded mode: Resuming from ledger %d (max in DB) to %d",
-					startLedger, endLedger)
-			} else {
-				// Max in DB is less than requested start, use the requested start
-				Logger.Infof("Bounded mode: Starting from requested ledger %d to %d (max in DB %d is before start)",
-					startLedger, endLedger, maxLedgerInDB)
-			}
+		// If start ledger <= 1, use latest network ledger in unbounded mode
+		if startLedger <= 1 {
+			startLedger = latestNetworkLedger
+			Logger.Infof("Backfill mode: Using latest network ledger %d as start", startLedger)
 		}
-	} else if !backfill {
-		// No database state available and not in backfill mode
-		Logger.Infof("Database is empty or state unknown, starting from requested ledger %d", startLedger)
+
+		if isUnbounded {
+			Logger.Infof("Backfill mode: Starting unbounded from ledger %d", startLedger)
+			return ledgerbackend.UnboundedRange(startLedger), true
+		}
+
+		Logger.Infof("Backfill mode: Processing ledgers from %d to %d", startLedger, endLedger)
+		return ledgerbackend.BoundedRange(startLedger, endLedger), true
 	}
 
-	// If no end ledger specified, or it's greater than the latest ledger,
-	// use an unbounded range from the start ledger
-	if endLedger <= UnboundedModeSentinel || endLedger > latestNetworkLedger {
-		Logger.Infof("Starting at ledger %v ...\n", startLedger)
+	// Non-backfill mode
+	if maxLedgerInDB > 0 {
+		// Database has data
+		if startLedger < maxLedgerInDB {
+			// Use max db ledger as start
+			startLedger = maxLedgerInDB
+			Logger.Infof("Non-backfill mode: Starting from max DB ledger %d", startLedger)
+		} else {
+			// Use provided start ledger
+			Logger.Infof("Non-backfill mode: Starting from requested ledger %d (max DB: %d)", startLedger, maxLedgerInDB)
+		}
+
+		if isUnbounded {
+			Logger.Infof("Non-backfill mode: Starting unbounded from ledger %d", startLedger)
+			return ledgerbackend.UnboundedRange(startLedger), true
+		}
+
+		// Bounded mode: check if work is already done
+		if startLedger >= endLedger {
+			Logger.Infof("All ledgers from requested range up to %d are already ingested (max in DB: %d). Nothing to do.", endLedger, maxLedgerInDB)
+			return ledgerbackend.Range{}, false
+		}
+
+		Logger.Infof("Non-backfill mode: Processing ledgers from %d to %d", startLedger, endLedger)
+		return ledgerbackend.BoundedRange(startLedger, endLedger), true
+	}
+
+	// Database is empty (maxLedgerInDB == 0)
+	if startLedger <= 1 {
+		// Use latest network ledger in unbounded mode
+		startLedger = latestNetworkLedger
+		Logger.Infof("Database empty: Using latest network ledger %d as start in unbounded mode", startLedger)
 		return ledgerbackend.UnboundedRange(startLedger), true
 	}
 
-	Logger.Infof("Processing ledgers from %d to %d\n", startLedger, endLedger)
-	return ledgerbackend.BoundedRange(startLedger, endLedger), true
+	if startLedger < latestNetworkLedger {
+		// Start from given start ledger
+		Logger.Infof("Database empty: Starting from requested ledger %d", startLedger)
+
+		if isUnbounded {
+			return ledgerbackend.UnboundedRange(startLedger), true
+		}
+
+		return ledgerbackend.BoundedRange(startLedger, endLedger), true
+	}
+
+	// Start ledger > latest network ledger: error
+	Logger.Errorf("Start ledger %d is greater than latest network ledger %d", startLedger, latestNetworkLedger)
+	return ledgerbackend.Range{}, false
 }
 
 func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error {
