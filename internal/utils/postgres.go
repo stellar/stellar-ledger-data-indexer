@@ -72,3 +72,7 @@ func (p *PostgresAdapter) Close() {
 		_ = p.DBOperator.Session().Close()
 	}
 }
+
+func (p *PostgresAdapter) GetMaxLedgerSequence(ctx context.Context) (uint32, error) {
+	return p.DBOperator.GetMaxLedgerSequence(ctx)
+}

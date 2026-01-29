@@ -44,7 +44,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 	}
 }
 
-func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfig PostgresConfig) (outboundAdapter utils.OutboundAdapter, err error) {
+func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfig PostgresConfig) (*utils.PostgresAdapter, error) {
 	envPostgresConnString := os.Getenv("POSTGRES_CONN_STRING")
 	var connString string
 	if envPostgresConnString != "" {
@@ -70,8 +70,8 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}
-	postgesAdapter := &utils.PostgresAdapter{DBOperator: dbOperator, Logger: Logger}
-	return postgesAdapter, nil
+	postgresAdapter := &utils.PostgresAdapter{DBOperator: dbOperator, Logger: Logger}
+	return postgresAdapter, nil
 }
 
 func IndexData(config Config) {
@@ -86,6 +86,28 @@ func IndexData(config Config) {
 	}
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
+	// Ensure adapters are closed on all exit paths
+	defer func() {
+		for _, adapter := range outboundAdapters {
+			adapter.Close()
+		}
+	}()
+
+	// Query max ledger sequence from database if not in backfill mode
+	var maxLedgerInDB uint32
+	if config.Backfill {
+		maxLedgerInDB = 0
+		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", config.StartLedger, config.EndLedger)
+	} else {
+		maxLedgerInDB, err = postgresAdapter.GetMaxLedgerSequence(ctx)
+		if err != nil {
+			Logger.Errorf("Failed to get max ledger sequence from database: %v. Proceeding with requested start ledger.", err)
+			maxLedgerInDB = 0
+		} else {
+			Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
+		}
+	}
+
 	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
 	if err != nil {
 		Logger.Fatal(err)
@@ -98,6 +120,8 @@ func IndexData(config Config) {
 		[]utils.Processor{processor},
 		config.StartLedger,
 		config.EndLedger,
+		config.Backfill,
+		maxLedgerInDB,
 	)
 	if err != nil {
 		Logger.Fatal(err)
@@ -110,10 +134,4 @@ func IndexData(config Config) {
 	} else {
 		Logger.Info("ingestion pipeline ended successfully")
 	}
-
-	defer func() {
-		for _, adapter := range outboundAdapters {
-			adapter.Close()
-		}
-	}()
 }

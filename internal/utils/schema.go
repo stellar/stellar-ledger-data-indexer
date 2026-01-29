@@ -11,6 +11,7 @@ type DBOperator interface {
 	Upsert(ctx context.Context, data any) error
 	TableName() string
 	Session() db.SessionInterface
+	GetMaxLedgerSequence(ctx context.Context) (uint32, error)
 }
 
 type Message struct {

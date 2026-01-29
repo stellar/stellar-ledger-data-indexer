@@ -12,6 +12,12 @@ import (
 
 const (
 	nameSpace = "LedgerDataIndexer"
+	// UnboundedModeSentinel is the value used to indicate unbounded mode for start/end ledger.
+	// Values <= this indicate no specific bound is set.
+	// Note: This is set to 1 (not 0) to maintain backward compatibility with existing CLI behavior
+	// where the default value for start/end flags is 1, and endLedger=1 means unbounded mode.
+	// Ledger sequences in Stellar start at 2 (genesis ledger), so 1 is naturally an invalid ledger.
+	UnboundedModeSentinel = uint32(1)
 )
 
 var (
@@ -39,6 +45,7 @@ type RuntimeSettings struct {
 	EndLedger      uint32
 	ConfigFilePath string
 	Dataset        string
+	Backfill       bool
 }
 
 type PostgresConfig struct {
@@ -55,6 +62,7 @@ type Config struct {
 	StartLedger       uint32
 	EndLedger         uint32
 	Dataset           string
+	Backfill          bool
 }
 
 func NewConfig(settings RuntimeSettings) (*Config, error) {
@@ -66,8 +74,9 @@ func NewConfig(settings RuntimeSettings) (*Config, error) {
 	config.StartLedger = uint32(settings.StartLedger)
 	config.EndLedger = uint32(settings.EndLedger)
 	config.Dataset = settings.Dataset
+	config.Backfill = settings.Backfill
 
-	Logger.Infof("Requested export with start=%d, end=%d", config.StartLedger, config.EndLedger)
+	Logger.Infof("Requested export with start=%d, end=%d, backfill=%t", config.StartLedger, config.EndLedger, config.Backfill)
 
 	var err error
 	if err = config.processToml(settings.ConfigFilePath); err != nil {

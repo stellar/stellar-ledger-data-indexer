@@ -14,6 +14,7 @@ type ContractDataDBOperator interface {
 	Upsert(ctx context.Context, data any) error
 	TableName() string
 	Session() db.SessionInterface
+	GetMaxLedgerSequence(ctx context.Context) (uint32, error)
 }
 
 type contractDataDBOperator struct {
@@ -94,4 +95,8 @@ func (i *contractDataDBOperator) TableName() string {
 
 func (i *contractDataDBOperator) Session() db.SessionInterface {
 	return i.session.session
+}
+
+func (i *contractDataDBOperator) GetMaxLedgerSequence(ctx context.Context) (uint32, error) {
+	return i.session.GetMaxLedgerSequence(ctx, i.table)
 }
