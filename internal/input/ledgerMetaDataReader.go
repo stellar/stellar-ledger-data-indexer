@@ -4,12 +4,10 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	"github.com/stellar/go/historyarchive"
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/ingest/ledgerbackend"
 	"github.com/stellar/go/support/datastore"
 	"github.com/stellar/go/support/log"
-	"github.com/stellar/go/support/storage"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
@@ -19,36 +17,36 @@ const (
 )
 
 type LedgerMetadataReader struct {
-	processors         []utils.Processor
-	historyArchiveURLs []string
-	dataStoreConfig    datastore.DataStoreConfig
-	startLedger        uint32
-	endLedger          uint32
-	backfill           bool
-	maxLedgerInDB      uint32
-	metricRecorder     utils.MetricRecorder
+	processors      []utils.Processor
+	dataStoreConfig datastore.DataStoreConfig
+	startLedger     uint32
+	endLedger       uint32
+	backfill        bool
+	maxLedgerInDB   uint32
+	metricRecorder  utils.MetricRecorder
+	dataStore       datastore.DataStore
 }
 
 func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
-	historyArchiveUrls []string,
 	processors []utils.Processor,
 	startLedger uint32,
 	endLedger uint32,
 	backfill bool,
 	maxLedgerInDB uint32,
+	dataStore datastore.DataStore,
 	metricRecorder utils.MetricRecorder) (*LedgerMetadataReader, error) {
 	if config == nil {
 		return nil, errors.New("missing configuration")
 	}
 	return &LedgerMetadataReader{
-		processors:         processors,
-		dataStoreConfig:    *config,
-		historyArchiveURLs: historyArchiveUrls,
-		startLedger:        startLedger,
-		endLedger:          endLedger,
-		backfill:           backfill,
-		maxLedgerInDB:      maxLedgerInDB,
-		metricRecorder:     metricRecorder,
+		processors:      processors,
+		dataStoreConfig: *config,
+		startLedger:     startLedger,
+		endLedger:       endLedger,
+		backfill:        backfill,
+		maxLedgerInDB:   maxLedgerInDB,
+		metricRecorder:  metricRecorder,
+		dataStore:       dataStore,
 	}, nil
 }
 
@@ -95,16 +93,7 @@ func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger ui
 }
 
 func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error {
-	historyArchive, err := historyarchive.NewArchivePool(a.historyArchiveURLs, historyarchive.ArchiveOptions{
-		ConnectOptions: storage.ConnectOptions{
-			UserAgent: UserAgent,
-			Context:   ctx,
-		},
-	})
-	if err != nil {
-		return errors.Wrap(err, "error creating history archive client")
-	}
-	latestNetworkLedger, err := historyArchive.GetLatestLedgerSequence()
+	latestNetworkLedger, err := datastore.FindLatestLedgerSequence(ctx, a.dataStore)
 
 	if err != nil {
 		return errors.Wrap(err, "error getting latest ledger")

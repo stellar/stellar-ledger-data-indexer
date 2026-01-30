@@ -8,8 +8,7 @@ import (
 	"os/signal"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/stellar/go/historyarchive"
-	"github.com/stellar/go/support/storage"
+	"github.com/stellar/go/support/datastore"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/db"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/input"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/transform"
@@ -23,7 +22,7 @@ func PostgresConnString(cfg PostgresConfig) string {
 	)
 }
 
-func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, passPhrase string, historyArchive historyarchive.ArchiveInterface) (processor utils.Processor, err error) {
+func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, passPhrase string, dataStore datastore.DataStore) (processor utils.Processor, err error) {
 	switch dataset {
 	case "contract_data":
 		processor := &transform.ContractDataProcessor{
@@ -31,7 +30,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
 				Passphrase:       passPhrase,
-				HistoryArchive:   historyArchive,
+				DataStore:        dataStore,
 				MetricRecorder:   MetricRecorder,
 			},
 		}
@@ -42,7 +41,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
 				Passphrase:       passPhrase,
-				HistoryArchive:   historyArchive,
+				DataStore:        dataStore,
 				MetricRecorder:   MetricRecorder,
 			},
 		}
@@ -121,14 +120,13 @@ func IndexData(config Config) {
 			Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
 		}
 	}
-	historyArchive, err := historyarchive.NewArchivePool(config.StellarCoreConfig.HistoryArchiveUrls, historyarchive.ArchiveOptions{
-		ConnectOptions: storage.ConnectOptions{
-			UserAgent: UserAgent,
-			Context:   ctx,
-		},
-	})
 
-	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase, historyArchive)
+	dataStore, err := datastore.NewGCSDataStore(ctx, config.DataStoreConfig)
+	if err != nil {
+		Logger.Fatal("failed to create GCS data store:", err)
+		return
+	}
+	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase, dataStore)
 	if err != nil {
 		Logger.Fatal(err)
 		return
@@ -136,12 +134,12 @@ func IndexData(config Config) {
 
 	reader, err := input.NewLedgerMetadataReader(
 		&config.DataStoreConfig,
-		config.StellarCoreConfig.HistoryArchiveUrls,
 		[]utils.Processor{processor},
 		config.StartLedger,
 		config.EndLedger,
 		config.Backfill,
 		maxLedgerInDB,
+		dataStore,
 		MetricRecorder,
 	)
 	if err != nil {

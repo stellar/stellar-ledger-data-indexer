@@ -6,6 +6,7 @@ import (
 
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/processors/contract"
+	"github.com/stellar/go/support/datastore"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
@@ -38,7 +39,8 @@ func GetTTLDataDetails(changes []ingest.Change, lhe xdr.LedgerHeaderHistoryEntry
 }
 
 func (p *TTLDataProcessor) Process(ctx context.Context, msg utils.Message) error {
-	latestNetworkLedger, err := p.HistoryArchive.GetLatestLedgerSequence()
+	latestNetworkLedger, err := datastore.FindLatestLedgerSequence(ctx, p.DataStore)
+
 	p.MetricRecorder.RecordLatestNetworkLedger("ttl", latestNetworkLedger)
 	ledgerCloseMeta, err := p.ExtractLedgerCloseMeta(msg)
 	if err != nil {
