@@ -126,6 +126,11 @@ func IndexData(config Config) {
 			Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
 		}
 	}
+	maxLedgerInGalexie, err := datastore.FindLatestLedgerSequence(ctx, dataStore)
+	if err != nil {
+		Logger.Fatal("failed to fetch latest ledger sequence from Galexie:", err)
+		return
+	}
 
 	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase, metricRecorder)
 	if err != nil {
@@ -140,7 +145,7 @@ func IndexData(config Config) {
 		config.EndLedger,
 		config.Backfill,
 		maxLedgerInDB,
-		dataStore,
+		maxLedgerInGalexie,
 	)
 	if err != nil {
 		Logger.Fatal(err)

@@ -17,13 +17,13 @@ const (
 )
 
 type LedgerMetadataReader struct {
-	processors      []utils.Processor
-	dataStoreConfig datastore.DataStoreConfig
-	startLedger     uint32
-	endLedger       uint32
-	backfill        bool
-	maxLedgerInDB   uint32
-	dataStore       datastore.DataStore
+	processors         []utils.Processor
+	dataStoreConfig    datastore.DataStoreConfig
+	startLedger        uint32
+	endLedger          uint32
+	backfill           bool
+	maxLedgerInDB      uint32
+	maxLedgerInGalexie uint32
 }
 
 func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
@@ -32,18 +32,18 @@ func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 	endLedger uint32,
 	backfill bool,
 	maxLedgerInDB uint32,
-	dataStore datastore.DataStore) (*LedgerMetadataReader, error) {
+	maxLedgerInGalexie uint32) (*LedgerMetadataReader, error) {
 	if config == nil {
 		return nil, errors.New("missing configuration")
 	}
 	return &LedgerMetadataReader{
-		processors:      processors,
-		dataStoreConfig: *config,
-		startLedger:     startLedger,
-		endLedger:       endLedger,
-		backfill:        backfill,
-		maxLedgerInDB:   maxLedgerInDB,
-		dataStore:       dataStore,
+		processors:         processors,
+		dataStoreConfig:    *config,
+		startLedger:        startLedger,
+		endLedger:          endLedger,
+		backfill:           backfill,
+		maxLedgerInDB:      maxLedgerInDB,
+		maxLedgerInGalexie: maxLedgerInGalexie,
 	}, nil
 }
 
@@ -90,11 +90,7 @@ func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger ui
 }
 
 func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error {
-	latestNetworkLedger, err := datastore.FindLatestLedgerSequence(ctx, a.dataStore)
-
-	if err != nil {
-		return errors.Wrap(err, "error getting latest ledger")
-	}
+	latestNetworkLedger := a.maxLedgerInGalexie
 
 	// Determine the actual ledger range to process
 	// Uses maxLedgerInDB from struct for database-aware ledger adjustments
@@ -113,7 +109,7 @@ func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error
 	return ingest.ApplyLedgerMetadata(ledgerRange, pubConfig, ctx,
 		func(lcm xdr.LedgerCloseMeta) error {
 			for _, processor := range a.processors {
-				if err = processor.Process(ctx, utils.Message{Payload: lcm}); err != nil {
+				if err := processor.Process(ctx, utils.Message{Payload: lcm}); err != nil {
 					return err
 				}
 			}
