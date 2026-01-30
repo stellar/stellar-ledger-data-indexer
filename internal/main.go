@@ -7,8 +7,11 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/go-errors/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stellar/go/support/datastore"
+	supporthttp "github.com/stellar/go/support/http"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/db"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/input"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/transform"
@@ -79,21 +82,37 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 	return postgresAdapter, nil
 }
 
+func newAdminServer(adminPort int, prometheusRegistry *prometheus.Registry) *http.Server {
+	mux := supporthttp.NewMux(Logger)
+	mux.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+	adminAddr := fmt.Sprintf(":%d", adminPort)
+	return &http.Server{
+		Addr:        adminAddr,
+		Handler:     mux,
+		ReadTimeout: adminServerReadTimeout,
+	}
+}
+
 func IndexData(config Config) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
 
+	registry := prometheus.NewRegistry()
+
+	adminServer := newAdminServer(config.MetricsPort, registry)
 	go func() {
-		metricsAddr := fmt.Sprintf(":%d", config.MetricsPort)
-		http.Handle("/metrics", promhttp.HandlerFor(Registry, promhttp.HandlerOpts{}))
-		http.ListenAndServe(metricsAddr, nil)
+		Logger.Infof("Starting admin server on port %v", config.MetricsPort)
+		if err := adminServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			Logger.Errorf("Admin server failed: %v", err)
+		}
 	}()
+
 	dataStore, err := datastore.NewGCSDataStore(ctx, config.DataStoreConfig)
 	if err != nil {
 		Logger.Fatal("failed to create GCS data store:", err)
 		return
 	}
-	metricRecorder := utils.GetNewMetricRecorder(ctx, Registry, nameSpace)
+	metricRecorder := utils.GetNewMetricRecorder(ctx, registry, nameSpace)
 
 	var outboundAdapters []utils.OutboundAdapter
 	postgresAdapter, err := getPostgresOutputAdapter(ctx, config.Dataset, config.PostgresConfig, metricRecorder)
@@ -102,8 +121,8 @@ func IndexData(config Config) {
 		return
 	}
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
-	metricRecorder.RegisterMaxLedgerSequenceInGalexieMetric(ctx, Registry, nameSpace, dataStore)
-	metricRecorder.RegisterMaxLedgerSequenceIndexedMetric(ctx, Registry, nameSpace, postgresAdapter.DBOperator)
+	metricRecorder.RegisterMaxLedgerSequenceInGalexieMetric(ctx, registry, nameSpace, dataStore)
+	metricRecorder.RegisterMaxLedgerSequenceIndexedMetric(ctx, registry, nameSpace, postgresAdapter.DBOperator)
 
 	// Ensure adapters are closed on all exit paths
 	defer func() {
@@ -153,6 +172,14 @@ func IndexData(config Config) {
 	}
 
 	err = reader.Run(ctx, Logger)
+	if adminServer != nil {
+		serverShutdownCtx, serverShutdownCancel := context.WithTimeout(context.Background(), adminServerShutdownTimeout)
+		defer serverShutdownCancel()
+		Logger.Info("shutting down admin server")
+		if err := adminServer.Shutdown(serverShutdownCtx); err != nil {
+			Logger.WithError(err).Warn("error in internalServer.Shutdown")
+		}
+	}
 	if err != nil {
 		Logger.Fatal("ingestion pipeline failed:", err)
 	} else {

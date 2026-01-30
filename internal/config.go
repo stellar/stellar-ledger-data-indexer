@@ -2,10 +2,10 @@ package internal
 
 import (
 	_ "embed"
+	"time"
 
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/datastore"
 	"github.com/stellar/go/support/log"
@@ -22,16 +22,17 @@ const (
 )
 
 var (
-	Logger   = log.New()
-	Registry = prometheus.NewRegistry()
+	Logger = log.New()
 
 	version   = "develop"
 	UserAgent = "stellar-ledger-data-indexer"
 )
 
 const (
-	Pubnet  = "pubnet"
-	Testnet = "testnet"
+	Pubnet                     = "pubnet"
+	Testnet                    = "testnet"
+	adminServerReadTimeout     = 5 * time.Second
+	adminServerShutdownTimeout = 5 * time.Second
 )
 
 type StellarCoreConfig struct {
