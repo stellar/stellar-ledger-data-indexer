@@ -3,9 +3,13 @@ package internal
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/stellar/go/historyarchive"
+	"github.com/stellar/go/support/storage"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/db"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/input"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/transform"
@@ -19,7 +23,7 @@ func PostgresConnString(cfg PostgresConfig) string {
 	)
 }
 
-func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, passPhrase string) (processor utils.Processor, err error) {
+func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, passPhrase string, historyArchive historyarchive.ArchiveInterface) (processor utils.Processor, err error) {
 	switch dataset {
 	case "contract_data":
 		processor := &transform.ContractDataProcessor{
@@ -27,6 +31,8 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
 				Passphrase:       passPhrase,
+				HistoryArchive:   historyArchive,
+				MetricRecorder:   MetricRecorder,
 			},
 		}
 		return processor, nil
@@ -36,6 +42,8 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
 				Passphrase:       passPhrase,
+				HistoryArchive:   historyArchive,
+				MetricRecorder:   MetricRecorder,
 			},
 		}
 		return processor, nil
@@ -64,9 +72,9 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 	var dbOperator utils.DBOperator
 	switch dataset {
 	case "contract_data":
-		dbOperator = db.NewContractDataDBOperator(*session)
+		dbOperator = db.NewContractDataDBOperator(*session, MetricRecorder)
 	case "ttl":
-		dbOperator = db.NewTTLDBOperator(*session)
+		dbOperator = db.NewTTLDBOperator(*session, MetricRecorder)
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}
@@ -77,6 +85,12 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 func IndexData(config Config) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
+
+	go func() {
+		metricsAddr := fmt.Sprintf(":%d", config.MetricsPort)
+		http.Handle("/metrics", promhttp.HandlerFor(Registry, promhttp.HandlerOpts{}))
+		http.ListenAndServe(metricsAddr, nil)
+	}()
 
 	var outboundAdapters []utils.OutboundAdapter
 	postgresAdapter, err := getPostgresOutputAdapter(ctx, config.Dataset, config.PostgresConfig)
@@ -107,8 +121,14 @@ func IndexData(config Config) {
 			Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
 		}
 	}
+	historyArchive, err := historyarchive.NewArchivePool(config.StellarCoreConfig.HistoryArchiveUrls, historyarchive.ArchiveOptions{
+		ConnectOptions: storage.ConnectOptions{
+			UserAgent: UserAgent,
+			Context:   ctx,
+		},
+	})
 
-	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
+	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase, historyArchive)
 	if err != nil {
 		Logger.Fatal(err)
 		return
@@ -122,6 +142,7 @@ func IndexData(config Config) {
 		config.EndLedger,
 		config.Backfill,
 		maxLedgerInDB,
+		MetricRecorder,
 	)
 	if err != nil {
 		Logger.Fatal(err)

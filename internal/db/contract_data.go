@@ -8,6 +8,7 @@ import (
 
 	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/support/db"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
 type ContractDataDBOperator interface {
@@ -18,12 +19,13 @@ type ContractDataDBOperator interface {
 }
 
 type contractDataDBOperator struct {
-	session DBSession
-	table   string
+	session        DBSession
+	table          string
+	metricRecorder utils.MetricRecorder
 }
 
-func NewContractDataDBOperator(dbSession DBSession) ContractDataDBOperator {
-	return &contractDataDBOperator{session: dbSession, table: "contract_data"}
+func NewContractDataDBOperator(dbSession DBSession, metricRecorder utils.MetricRecorder) ContractDataDBOperator {
+	return &contractDataDBOperator{session: dbSession, table: "contract_data", metricRecorder: metricRecorder}
 }
 
 func ExtractSymbol(keyDecoded map[string]string) string {
@@ -71,6 +73,7 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		closedAt = append(closedAt, contractData.ClosedAt)
 		key = append(key, keyBytes)
 		val = append(val, valBytes)
+		i.metricRecorder.RecordLatestLedgerSequence(i.table, contractData.LedgerSequence)
 	}
 
 	upsertFields := []UpsertField{
@@ -86,7 +89,9 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 	upsertConditions := []UpsertCondition{
 		{"ledger_sequence", OpGT},
 	}
-	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
+	rowsAffected, err := i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
+	i.metricRecorder.RecordUpsertCount(i.table, rowsAffected)
+	return err
 }
 
 func (i *contractDataDBOperator) TableName() string {

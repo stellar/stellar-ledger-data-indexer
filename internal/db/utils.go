@@ -78,7 +78,7 @@ func (q *DBSession) GetMaxLedgerSequence(ctx context.Context, tableName string) 
 }
 
 // Extended from https://github.com/stellar/stellar-horizon/blob/main/internal/db2/history/main.go
-func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField string, fields []UpsertField, conditions []UpsertCondition) error {
+func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField string, fields []UpsertField, conditions []UpsertCondition) (rowsAffected int64, err error) {
 	unnestPart := make([]string, 0, len(fields))
 	insertFieldsPart := make([]string, 0, len(fields))
 	onConflictPart := make([]string, 0, len(fields))
@@ -105,7 +105,7 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 	}
 	for _, condition := range conditions {
 		if !condition.operator.Valid() {
-			return fmt.Errorf("invalid operator for condition on field %s", condition.column)
+			return 0, fmt.Errorf("invalid operator for condition on field %s", condition.column)
 		}
 		onConflictConditionPart = append(
 			onConflictConditionPart,
@@ -125,10 +125,11 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 		sql += " WHERE " + strings.Join(onConflictConditionPart, " AND ")
 	}
 
-	_, err := q.session.ExecRaw(
+	sqlRes, err := q.session.ExecRaw(
 		context.WithValue(ctx, &db.QueryTypeContextKey, db.UpsertQueryType),
 		sql,
 		pqArrays...,
 	)
-	return err
+	rowsAffected, _ = sqlRes.RowsAffected()
+	return rowsAffected, err
 }

@@ -38,6 +38,8 @@ func GetTTLDataDetails(changes []ingest.Change, lhe xdr.LedgerHeaderHistoryEntry
 }
 
 func (p *TTLDataProcessor) Process(ctx context.Context, msg utils.Message) error {
+	latestNetworkLedger, err := p.HistoryArchive.GetLatestLedgerSequence()
+	p.MetricRecorder.RecordLatestNetworkLedger("ttl", latestNetworkLedger)
 	ledgerCloseMeta, err := p.ExtractLedgerCloseMeta(msg)
 	if err != nil {
 		return err

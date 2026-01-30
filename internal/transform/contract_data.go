@@ -43,6 +43,8 @@ func GetContractDataDetails(changes []ingest.Change, lhe xdr.LedgerHeaderHistory
 }
 
 func (p *ContractDataProcessor) Process(ctx context.Context, msg utils.Message) error {
+	latestNetworkLedger, err := p.HistoryArchive.GetLatestLedgerSequence()
+	p.MetricRecorder.RecordLatestNetworkLedger("contract_data", latestNetworkLedger)
 	ledgerCloseMeta, err := p.ExtractLedgerCloseMeta(msg)
 	if err != nil {
 		return err

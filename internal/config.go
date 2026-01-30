@@ -5,9 +5,11 @@ import (
 
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/datastore"
 	"github.com/stellar/go/support/log"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
 const (
@@ -21,8 +23,12 @@ const (
 )
 
 var (
-	Logger  = log.New()
-	version = "develop"
+	Logger         = log.New()
+	Registry       = prometheus.NewRegistry()
+	MetricRecorder = utils.GetNewMetricRecorder(Registry, nameSpace)
+
+	version   = "develop"
+	UserAgent = "stellar-ledger-data-indexer"
 )
 
 const (
@@ -46,6 +52,7 @@ type RuntimeSettings struct {
 	ConfigFilePath string
 	Dataset        string
 	Backfill       bool
+	MetricsPort    int
 }
 
 type PostgresConfig struct {
@@ -63,6 +70,7 @@ type Config struct {
 	EndLedger         uint32
 	Dataset           string
 	Backfill          bool
+	MetricsPort       int
 }
 
 func NewConfig(settings RuntimeSettings) (*Config, error) {
@@ -75,6 +83,7 @@ func NewConfig(settings RuntimeSettings) (*Config, error) {
 	config.EndLedger = uint32(settings.EndLedger)
 	config.Dataset = settings.Dataset
 	config.Backfill = settings.Backfill
+	config.MetricsPort = settings.MetricsPort
 
 	Logger.Infof("Requested export with start=%d, end=%d, backfill=%t", config.StartLedger, config.EndLedger, config.Backfill)
 

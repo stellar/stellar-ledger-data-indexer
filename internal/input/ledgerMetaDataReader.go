@@ -26,6 +26,7 @@ type LedgerMetadataReader struct {
 	endLedger          uint32
 	backfill           bool
 	maxLedgerInDB      uint32
+	metricRecorder     utils.MetricRecorder
 }
 
 func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
@@ -34,7 +35,8 @@ func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 	startLedger uint32,
 	endLedger uint32,
 	backfill bool,
-	maxLedgerInDB uint32) (*LedgerMetadataReader, error) {
+	maxLedgerInDB uint32,
+	metricRecorder utils.MetricRecorder) (*LedgerMetadataReader, error) {
 	if config == nil {
 		return nil, errors.New("missing configuration")
 	}
@@ -46,6 +48,7 @@ func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 		endLedger:          endLedger,
 		backfill:           backfill,
 		maxLedgerInDB:      maxLedgerInDB,
+		metricRecorder:     metricRecorder,
 	}, nil
 }
 
@@ -110,6 +113,8 @@ func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error
 	// Determine the actual ledger range to process
 	// Uses maxLedgerInDB from struct for database-aware ledger adjustments
 	ledgerRange, shouldProceed := GetLedgerBound(a.startLedger, a.endLedger, latestNetworkLedger, a.backfill, a.maxLedgerInDB, Logger)
+	a.metricRecorder.RecordLedgerBounds("contract_data", a.startLedger, a.endLedger, ledgerRange.From(), ledgerRange.To(), a.backfill)
+	a.metricRecorder.RecordLatestNetworkLedger("contract_data", latestNetworkLedger)
 	if !shouldProceed {
 		return nil
 	}

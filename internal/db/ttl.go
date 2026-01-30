@@ -6,6 +6,7 @@ import (
 
 	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/support/db"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
 type TTLDBOperator interface {
@@ -16,12 +17,13 @@ type TTLDBOperator interface {
 }
 
 type ttlDBOperator struct {
-	session DBSession
-	table   string
+	session        DBSession
+	table          string
+	metricRecorder utils.MetricRecorder
 }
 
-func NewTTLDBOperator(dbSession DBSession) TTLDBOperator {
-	return &ttlDBOperator{session: dbSession, table: "ttl"}
+func NewTTLDBOperator(dbSession DBSession, metricRecorder utils.MetricRecorder) TTLDBOperator {
+	return &ttlDBOperator{session: dbSession, table: "ttl", metricRecorder: metricRecorder}
 }
 
 func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
@@ -37,6 +39,7 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 		liveUntilLedgerSequence = append(liveUntilLedgerSequence, ttlData.LiveUntilLedgerSeq)
 		closedAt = append(closedAt, ttlData.ClosedAt)
 		ledgerSequence = append(ledgerSequence, ttlData.LedgerSequence)
+		i.metricRecorder.RecordLatestLedgerSequence(i.table, ttlData.LedgerSequence)
 	}
 
 	upsertFields := []UpsertField{
@@ -49,7 +52,9 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 	upsertConditions := []UpsertCondition{
 		{"ledger_sequence", OpGT},
 	}
-	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
+	rowsAffected, err := i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
+	i.metricRecorder.RecordUpsertCount(i.table, rowsAffected)
+	return err
 }
 
 func (i *ttlDBOperator) TableName() string {
