@@ -12,6 +12,7 @@ type TTLDBOperator interface {
 	Upsert(ctx context.Context, data any) error
 	TableName() string
 	Session() db.SessionInterface
+	GetMaxLedgerSequence(ctx context.Context) (uint32, error)
 }
 
 type ttlDBOperator struct {
@@ -57,4 +58,8 @@ func (i *ttlDBOperator) TableName() string {
 
 func (i *ttlDBOperator) Session() db.SessionInterface {
 	return i.session.session
+}
+
+func (i *ttlDBOperator) GetMaxLedgerSequence(ctx context.Context) (uint32, error) {
+	return i.session.GetMaxLedgerSequence(ctx, i.table)
 }

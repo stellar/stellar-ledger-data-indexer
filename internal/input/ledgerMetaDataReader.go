@@ -24,11 +24,17 @@ type LedgerMetadataReader struct {
 	dataStoreConfig    datastore.DataStoreConfig
 	startLedger        uint32
 	endLedger          uint32
+	backfill           bool
+	maxLedgerInDB      uint32
 }
 
 func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 	historyArchiveUrls []string,
-	processors []utils.Processor, startLedger uint32, endLedger uint32) (*LedgerMetadataReader, error) {
+	processors []utils.Processor,
+	startLedger uint32,
+	endLedger uint32,
+	backfill bool,
+	maxLedgerInDB uint32) (*LedgerMetadataReader, error) {
 	if config == nil {
 		return nil, errors.New("missing configuration")
 	}
@@ -38,27 +44,51 @@ func NewLedgerMetadataReader(config *datastore.DataStoreConfig,
 		historyArchiveURLs: historyArchiveUrls,
 		startLedger:        startLedger,
 		endLedger:          endLedger,
+		backfill:           backfill,
+		maxLedgerInDB:      maxLedgerInDB,
 	}, nil
 }
 
-func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger uint32, Logger *log.Entry) ledgerbackend.Range {
-	var ledgerRange ledgerbackend.Range
-
-	// If no start ledger specified, start from the latest ledger
-	if startLedger <= 1 {
-		startLedger = latestNetworkLedger
+// Returns the ledger range to process and a boolean indicating if processing should proceed.
+func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger uint32, backfill bool, maxLedgerInDB uint32, logger *log.Entry) (ledgerbackend.Range, bool) {
+	const UnboundedSentinel = uint32(1)
+	if endLedger > UnboundedSentinel && endLedger < startLedger {
+		logger.Errorf("End ledger %d is less than start ledger %d", endLedger, startLedger)
+		return ledgerbackend.Range{}, false
+	}
+	if endLedger > UnboundedSentinel && endLedger > latestNetworkLedger {
+		logger.Errorf("End ledger %d is greater than latest network ledger %d", endLedger, latestNetworkLedger)
+		return ledgerbackend.Range{}, false
 	}
 
-	// If no end ledger specified, or it's greater than the latest ledger,
-	// use an unbounded range from the start ledger
-	if endLedger <= 1 || endLedger > latestNetworkLedger {
-		Logger.Infof("Starting at ledger %v ...\n", startLedger)
-		ledgerRange = ledgerbackend.UnboundedRange(startLedger)
-	} else {
-		Logger.Infof("Processing ledgers from %d to %d\n", startLedger, endLedger)
-		ledgerRange = ledgerbackend.BoundedRange(startLedger, endLedger)
+	if startLedger > UnboundedSentinel && startLedger > latestNetworkLedger {
+		logger.Errorf("Start ledger %d is greater than latest network ledger %d", startLedger, latestNetworkLedger)
+		return ledgerbackend.Range{}, false
 	}
-	return ledgerRange
+
+	if endLedger <= maxLedgerInDB && endLedger > UnboundedSentinel && backfill == false {
+		logger.Infof("End ledger %d is less than or equal to max ledger in DB %d, nothing to process", endLedger, maxLedgerInDB)
+		return ledgerbackend.Range{}, false
+	}
+
+	if !backfill && maxLedgerInDB > 0 && startLedger <= maxLedgerInDB {
+		startLedger = maxLedgerInDB
+		logger.Infof("Using max ledger sequence as start")
+	}
+
+	isUnbounded := endLedger <= UnboundedSentinel || startLedger <= UnboundedSentinel || startLedger == latestNetworkLedger
+
+	if isUnbounded {
+		if startLedger <= UnboundedSentinel {
+			startLedger = latestNetworkLedger
+		}
+		logger.Infof("Operating in unbounded mode from ledger %d", startLedger)
+		return ledgerbackend.UnboundedRange(startLedger), true
+	}
+
+	logger.Infof("Operating in bounded mode from ledger %d to ledger %d", startLedger, endLedger)
+	return ledgerbackend.BoundedRange(startLedger, endLedger), true
+
 }
 
 func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error {
@@ -78,7 +108,11 @@ func (a *LedgerMetadataReader) Run(ctx context.Context, Logger *log.Entry) error
 	}
 
 	// Determine the actual ledger range to process
-	ledgerRange := GetLedgerBound(a.startLedger, a.endLedger, latestNetworkLedger, Logger)
+	// Uses maxLedgerInDB from struct for database-aware ledger adjustments
+	ledgerRange, shouldProceed := GetLedgerBound(a.startLedger, a.endLedger, latestNetworkLedger, a.backfill, a.maxLedgerInDB, Logger)
+	if !shouldProceed {
+		return nil
+	}
 
 	pubConfig := ingest.PublisherConfig{
 		DataStoreConfig:       a.dataStoreConfig,
