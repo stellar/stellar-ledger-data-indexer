@@ -1,30 +1,28 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stellar/go/support/datastore"
 )
 
 type metricRecorder struct {
-	UpsertCountMetric           *prometheus.GaugeVec
-	LatestLedgerSequenceMetric  *prometheus.GaugeVec
-	LedgerInputStartMetric      *prometheus.GaugeVec
-	LedgerInputEndMetric        *prometheus.GaugeVec
-	LedgerActualStartMetric     *prometheus.GaugeVec
-	LedgerActualEndMetric       *prometheus.GaugeVec
-	LedgerBackfillEnabledMetric *prometheus.GaugeVec
-	LatestNetworkLedgerMetric   *prometheus.GaugeVec
+	UpsertCountMetric                *prometheus.GaugeVec
+	MaxLedgerSequenceIndexedMetric   *prometheus.GaugeVec
+	ProcessingLedgerSequenceMetric   *prometheus.GaugeVec
+	MaxLedgerSequenceInGalexieMetric *prometheus.GaugeVec
 }
 
 type MetricRecorder interface {
 	RecordUpsertCount(table string, count int64)
-	RecordLatestLedgerSequence(table string, sequence uint32)
-	RecordLedgerBounds(table string, inputStart uint32, inputEnd uint32, actualStart uint32, actualEnd uint32, backfill bool)
-	RecordLatestNetworkLedger(table string, sequence uint32)
+	RecordProcessingLedgerSequence(sequence uint32)
+	RegisterMaxLedgerSequenceIndexedMetric(ctx context.Context, registry *prometheus.Registry, nameSpace string, dbOperator DBOperator)
+	RegisterMaxLedgerSequenceInGalexieMetric(ctx context.Context, registry *prometheus.Registry, nameSpace string, dataStore datastore.DataStore)
 }
 
-func GetNewMetricRecorder(registry *prometheus.Registry, nameSpace string) MetricRecorder {
+func GetNewMetricRecorder(ctx context.Context, registry *prometheus.Registry, nameSpace string) MetricRecorder {
 	var (
 		upsertCountMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: nameSpace,
@@ -33,79 +31,21 @@ func GetNewMetricRecorder(registry *prometheus.Registry, nameSpace string) Metri
 			[]string{"table_name"},
 		)
 
-		latestLedgerSequenceMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: nameSpace,
-			Name:      "latest_ledger_sequence",
-		},
-			[]string{"table_name"},
-		)
-
-		ledgerInputStart = prometheus.NewGaugeVec(
+		processingLedgerSequenceMetric = prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: nameSpace,
-				Name:      "ledger_input_start",
-				Help:      "Requested start ledger",
+				Name:      "ledger_sequence_processing",
 			},
-			[]string{"table_name"},
-		)
-
-		ledgerInputEnd = prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: nameSpace,
-				Name:      "ledger_input_end",
-				Help:      "Requested end ledger",
-			},
-			[]string{"table_name"},
-		)
-
-		ledgerActualStart = prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: nameSpace,
-				Name:      "ledger_actual_start",
-				Help:      "Actual start ledger processed",
-			},
-			[]string{"table_name"},
-		)
-
-		ledgerActualEnd = prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: nameSpace,
-				Name:      "ledger_actual_end",
-				Help:      "Actual end ledger processed",
-			},
-			[]string{"table_name"},
-		)
-
-		ledgerBackfillEnabled = prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: nameSpace,
-				Name:      "ledger_backfill_enabled",
-				Help:      "Whether backfill mode is enabled",
-			},
-			[]string{"table_name"},
-		)
-
-		latestNetworkLedgerMetric = prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: nameSpace,
-				Name:      "latest_network_ledger",
-			},
-			[]string{"table_name"},
+			[]string{},
 		)
 	)
 
-	registry.MustRegister(upsertCountMetric, latestLedgerSequenceMetric, ledgerInputStart, ledgerInputEnd, ledgerActualStart, ledgerActualEnd, ledgerBackfillEnabled, latestNetworkLedgerMetric)
+	registry.MustRegister(upsertCountMetric, processingLedgerSequenceMetric)
 
 	fmt.Println("Prometheus metric registered")
 	return &metricRecorder{
-		UpsertCountMetric:           upsertCountMetric,
-		LatestLedgerSequenceMetric:  latestLedgerSequenceMetric,
-		LedgerInputStartMetric:      ledgerInputStart,
-		LedgerInputEndMetric:        ledgerInputEnd,
-		LedgerActualStartMetric:     ledgerActualStart,
-		LedgerActualEndMetric:       ledgerActualEnd,
-		LedgerBackfillEnabledMetric: ledgerBackfillEnabled,
-		LatestNetworkLedgerMetric:   latestNetworkLedgerMetric,
+		UpsertCountMetric:              upsertCountMetric,
+		ProcessingLedgerSequenceMetric: processingLedgerSequenceMetric,
 	}
 }
 
@@ -113,22 +53,41 @@ func (metricRecorder *metricRecorder) RecordUpsertCount(table string, count int6
 	metricRecorder.UpsertCountMetric.With(prometheus.Labels{"table_name": table}).Set(float64(count))
 }
 
-func (metricRecorder *metricRecorder) RecordLatestLedgerSequence(table string, sequence uint32) {
-	metricRecorder.LatestLedgerSequenceMetric.With(prometheus.Labels{"table_name": table}).Set(float64(sequence))
+func (metricRecorder *metricRecorder) RecordProcessingLedgerSequence(sequence uint32) {
+	metricRecorder.ProcessingLedgerSequenceMetric.With(prometheus.Labels{}).Set(float64(sequence))
 }
 
-func (metricRecorder *metricRecorder) RecordLedgerBounds(table string, inputStart uint32, inputEnd uint32, actualStart uint32, actualEnd uint32, backfill bool) {
-	metricRecorder.LedgerInputStartMetric.With(prometheus.Labels{"table_name": table}).Set(float64(inputStart))
-	metricRecorder.LedgerInputEndMetric.With(prometheus.Labels{"table_name": table}).Set(float64(inputEnd))
-	metricRecorder.LedgerActualStartMetric.With(prometheus.Labels{"table_name": table}).Set(float64(actualStart))
-	metricRecorder.LedgerActualEndMetric.With(prometheus.Labels{"table_name": table}).Set(float64(actualEnd))
-	if backfill {
-		metricRecorder.LedgerBackfillEnabledMetric.With(prometheus.Labels{"table_name": table}).Set(1)
-	} else {
-		metricRecorder.LedgerBackfillEnabledMetric.With(prometheus.Labels{"table_name": table}).Set(0)
-	}
+func (metricRecorder *metricRecorder) RegisterMaxLedgerSequenceIndexedMetric(ctx context.Context, registry *prometheus.Registry, nameSpace string, dbOperator DBOperator) {
+	maxLedgerSequenceIndexedMetric := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: nameSpace,
+		Name:      "max_ledger_sequence_indexed",
+	},
+		func() float64 {
+			latestIndexedLedger, err := dbOperator.GetMaxLedgerSequence(ctx)
+			if err != nil {
+				fmt.Printf("Error fetching max ledger sequence indexed: %v\n", err)
+				return 0
+			}
+			return float64(latestIndexedLedger)
+		},
+	)
+	registry.MustRegister(maxLedgerSequenceIndexedMetric)
 }
 
-func (metricRecorder *metricRecorder) RecordLatestNetworkLedger(table string, sequence uint32) {
-	metricRecorder.LatestNetworkLedgerMetric.With(prometheus.Labels{"table_name": table}).Set(float64(sequence))
+func (metricRecorder *metricRecorder) RegisterMaxLedgerSequenceInGalexieMetric(ctx context.Context, registry *prometheus.Registry, nameSpace string, dataStore datastore.DataStore) {
+	maxLedgerSequenceInGalexieMetric := prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Namespace: nameSpace,
+			Name:      "max_ledger_sequence_in_galexie",
+		},
+		func() float64 {
+			latestNetworkLedger, err := datastore.FindLatestLedgerSequence(ctx, dataStore)
+			if err != nil {
+				fmt.Printf("Error fetching latest network ledger sequence: %v\n", err)
+				return 0
+			}
+			return float64(latestNetworkLedger)
+		},
+	)
+	registry.MustRegister(maxLedgerSequenceInGalexieMetric)
 }

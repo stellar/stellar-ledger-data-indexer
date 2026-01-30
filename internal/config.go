@@ -9,7 +9,6 @@ import (
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/support/datastore"
 	"github.com/stellar/go/support/log"
-	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
 const (
@@ -23,9 +22,8 @@ const (
 )
 
 var (
-	Logger         = log.New()
-	Registry       = prometheus.NewRegistry()
-	MetricRecorder = utils.GetNewMetricRecorder(Registry, nameSpace)
+	Logger   = log.New()
+	Registry = prometheus.NewRegistry()
 
 	version   = "develop"
 	UserAgent = "stellar-ledger-data-indexer"

@@ -73,7 +73,6 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		closedAt = append(closedAt, contractData.ClosedAt)
 		key = append(key, keyBytes)
 		val = append(val, valBytes)
-		i.metricRecorder.RecordLatestLedgerSequence(i.table, contractData.LedgerSequence)
 	}
 
 	upsertFields := []UpsertField{

@@ -6,7 +6,6 @@ import (
 
 	"github.com/stellar/go/ingest"
 	"github.com/stellar/go/processors/contract"
-	"github.com/stellar/go/support/datastore"
 	"github.com/stellar/go/xdr"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
@@ -44,9 +43,6 @@ func GetContractDataDetails(changes []ingest.Change, lhe xdr.LedgerHeaderHistory
 }
 
 func (p *ContractDataProcessor) Process(ctx context.Context, msg utils.Message) error {
-	latestNetworkLedger, err := datastore.FindLatestLedgerSequence(ctx, p.DataStore)
-	p.MetricRecorder.RecordLatestNetworkLedger("contract_data", latestNetworkLedger)
-
 	ledgerCloseMeta, err := p.ExtractLedgerCloseMeta(msg)
 	if err != nil {
 		return err
@@ -61,6 +57,8 @@ func (p *ContractDataProcessor) Process(ctx context.Context, msg utils.Message) 
 	if err != nil {
 		return err
 	}
+
+	p.MetricRecorder.RecordProcessingLedgerSequence(uint32(lhe.Header.LedgerSeq))
 
 	p.Logger.Infof("Processed %d contracts in ledger sequence %d", len(contracts), lhe.Header.LedgerSeq)
 	var data []interface{}

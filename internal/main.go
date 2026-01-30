@@ -22,7 +22,7 @@ func PostgresConnString(cfg PostgresConfig) string {
 	)
 }
 
-func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, passPhrase string, dataStore datastore.DataStore) (processor utils.Processor, err error) {
+func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, passPhrase string, metricRecorder utils.MetricRecorder) (processor utils.Processor, err error) {
 	switch dataset {
 	case "contract_data":
 		processor := &transform.ContractDataProcessor{
@@ -30,8 +30,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
 				Passphrase:       passPhrase,
-				DataStore:        dataStore,
-				MetricRecorder:   MetricRecorder,
+				MetricRecorder:   metricRecorder,
 			},
 		}
 		return processor, nil
@@ -41,8 +40,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
 				Passphrase:       passPhrase,
-				DataStore:        dataStore,
-				MetricRecorder:   MetricRecorder,
+				MetricRecorder:   metricRecorder,
 			},
 		}
 		return processor, nil
@@ -51,7 +49,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 	}
 }
 
-func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfig PostgresConfig) (*utils.PostgresAdapter, error) {
+func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfig PostgresConfig, metricRecorder utils.MetricRecorder) (*utils.PostgresAdapter, error) {
 	envPostgresConnString := os.Getenv("POSTGRES_CONN_STRING")
 	var connString string
 	if envPostgresConnString != "" {
@@ -71,9 +69,9 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 	var dbOperator utils.DBOperator
 	switch dataset {
 	case "contract_data":
-		dbOperator = db.NewContractDataDBOperator(*session, MetricRecorder)
+		dbOperator = db.NewContractDataDBOperator(*session, metricRecorder)
 	case "ttl":
-		dbOperator = db.NewTTLDBOperator(*session, MetricRecorder)
+		dbOperator = db.NewTTLDBOperator(*session, metricRecorder)
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}
@@ -90,14 +88,22 @@ func IndexData(config Config) {
 		http.Handle("/metrics", promhttp.HandlerFor(Registry, promhttp.HandlerOpts{}))
 		http.ListenAndServe(metricsAddr, nil)
 	}()
+	dataStore, err := datastore.NewGCSDataStore(ctx, config.DataStoreConfig)
+	if err != nil {
+		Logger.Fatal("failed to create GCS data store:", err)
+		return
+	}
+	metricRecorder := utils.GetNewMetricRecorder(ctx, Registry, nameSpace)
 
 	var outboundAdapters []utils.OutboundAdapter
-	postgresAdapter, err := getPostgresOutputAdapter(ctx, config.Dataset, config.PostgresConfig)
+	postgresAdapter, err := getPostgresOutputAdapter(ctx, config.Dataset, config.PostgresConfig, metricRecorder)
 	if err != nil {
 		Logger.Fatal(err)
 		return
 	}
 	outboundAdapters = append(outboundAdapters, postgresAdapter)
+	metricRecorder.RegisterMaxLedgerSequenceInGalexieMetric(ctx, Registry, nameSpace, dataStore)
+	metricRecorder.RegisterMaxLedgerSequenceIndexedMetric(ctx, Registry, nameSpace, postgresAdapter.DBOperator)
 
 	// Ensure adapters are closed on all exit paths
 	defer func() {
@@ -121,12 +127,7 @@ func IndexData(config Config) {
 		}
 	}
 
-	dataStore, err := datastore.NewGCSDataStore(ctx, config.DataStoreConfig)
-	if err != nil {
-		Logger.Fatal("failed to create GCS data store:", err)
-		return
-	}
-	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase, dataStore)
+	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase, metricRecorder)
 	if err != nil {
 		Logger.Fatal(err)
 		return
@@ -140,7 +141,6 @@ func IndexData(config Config) {
 		config.Backfill,
 		maxLedgerInDB,
 		dataStore,
-		MetricRecorder,
 	)
 	if err != nil {
 		Logger.Fatal(err)

@@ -39,7 +39,6 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 		liveUntilLedgerSequence = append(liveUntilLedgerSequence, ttlData.LiveUntilLedgerSeq)
 		closedAt = append(closedAt, ttlData.ClosedAt)
 		ledgerSequence = append(ledgerSequence, ttlData.LedgerSequence)
-		i.metricRecorder.RecordLatestLedgerSequence(i.table, ttlData.LedgerSequence)
 	}
 
 	upsertFields := []UpsertField{

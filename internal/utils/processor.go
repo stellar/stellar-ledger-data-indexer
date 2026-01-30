@@ -11,7 +11,6 @@ import (
 	"sort"
 
 	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/support/datastore"
 	"github.com/stellar/go/support/log"
 	"github.com/stellar/go/xdr"
 )
@@ -24,7 +23,6 @@ type BaseProcessor struct {
 	OutboundAdapters []OutboundAdapter
 	Logger           *log.Entry
 	Passphrase       string
-	DataStore        datastore.DataStore
 	MetricRecorder   MetricRecorder
 }
 
