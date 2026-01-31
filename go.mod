@@ -3,9 +3,11 @@ module github.com/stellar/stellar-ledger-data-indexer
 go 1.24.0
 
 require (
+	github.com/go-errors/errors v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.17.0
 	github.com/rubenv/sql-migrate v1.8.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.7
@@ -23,11 +25,13 @@ require (
 	cloud.google.com/go/iam v1.5.2 // indirect
 	cloud.google.com/go/monitoring v1.24.0 // indirect
 	cloud.google.com/go/storage v1.53.0 // indirect
+	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.29.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.51.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.49.6 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.36.5 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.11 // indirect
@@ -62,7 +66,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/fsouza/fake-gcs-server v1.52.3 // indirect
-	github.com/go-errors/errors v1.5.1 // indirect
+	github.com/go-chi/chi v4.1.2+incompatible // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -86,10 +90,10 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.17.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
+	github.com/rs/cors v1.11.0 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/segmentio/go-loggly v0.5.1-0.20171222203950-eb91657e62b2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
@@ -128,5 +132,6 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/djherbis/atime.v1 v1.0.0 // indirect
 	gopkg.in/djherbis/stream.v1 v1.3.1 // indirect
+	gopkg.in/tylerb/graceful.v1 v1.2.15 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

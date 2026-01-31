@@ -23,6 +23,7 @@ func DefineCommands() *cobra.Command {
 				cmd.PersistentFlags().Lookup("config-file"),
 				cmd.PersistentFlags().Lookup("dataset"),
 				cmd.PersistentFlags().Lookup("backfill"),
+				cmd.PersistentFlags().Lookup("metrics-port"),
 			)
 			config, err := internal.NewConfig(settings)
 			if err != nil {
@@ -39,12 +40,13 @@ func DefineCommands() *cobra.Command {
 	rootCmd.PersistentFlags().String("config-file", "config.toml", "Path to the TOML config file. Defaults to 'config.toml' on runtime working directory path.")
 	rootCmd.PersistentFlags().String("dataset", "contract_data", "Dataset to index")
 	rootCmd.PersistentFlags().Bool("backfill", false, "Enable backfill mode. When enabled, the exact start and end ledgers are respected without checking the database for existing data. Use this for historical data imports or re-indexing specific ranges.")
+	rootCmd.PersistentFlags().Int("metrics-port", 8080, "Port for Prometheus metrics.")
 	viper.BindPFlags(rootCmd.PersistentFlags())
 
 	return rootCmd
 }
 
-func bindCliParameters(startFlag *pflag.Flag, endFlag *pflag.Flag, configFileFlag *pflag.Flag, datasetFlag *pflag.Flag, backfillFlag *pflag.Flag) internal.RuntimeSettings {
+func bindCliParameters(startFlag *pflag.Flag, endFlag *pflag.Flag, configFileFlag *pflag.Flag, datasetFlag *pflag.Flag, backfillFlag *pflag.Flag, metricsPortFlag *pflag.Flag) internal.RuntimeSettings {
 	settings := internal.RuntimeSettings{}
 
 	viper.BindPFlag(startFlag.Name, startFlag)
@@ -66,6 +68,10 @@ func bindCliParameters(startFlag *pflag.Flag, endFlag *pflag.Flag, configFileFla
 	viper.BindPFlag(backfillFlag.Name, backfillFlag)
 	viper.BindEnv(backfillFlag.Name, strutils.KebabToConstantCase(backfillFlag.Name))
 	settings.Backfill = viper.GetBool(backfillFlag.Name)
+
+	viper.BindPFlag(metricsPortFlag.Name, metricsPortFlag)
+	viper.BindEnv(metricsPortFlag.Name, strutils.KebabToConstantCase(metricsPortFlag.Name))
+	settings.MetricsPort = viper.GetInt(metricsPortFlag.Name)
 
 	return settings
 }

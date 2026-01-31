@@ -23,6 +23,7 @@ type BaseProcessor struct {
 	OutboundAdapters []OutboundAdapter
 	Logger           *log.Entry
 	Passphrase       string
+	MetricRecorder   MetricRecorder
 }
 
 func (p *BaseProcessor) CreateLCMDataReader(ledgerCloseMeta xdr.LedgerCloseMeta) (*ingest.LedgerChangeReader, error) {
