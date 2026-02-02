@@ -165,6 +165,7 @@ func IndexData(config Config) {
 		config.Backfill,
 		maxLedgerInDB,
 		maxLedgerInGalexie,
+		metricRecorder,
 	)
 	if err != nil {
 		Logger.Fatal(err)

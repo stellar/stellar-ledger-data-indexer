@@ -24,7 +24,6 @@ const (
 var (
 	Logger = log.New()
 
-	version   = "develop"
 	UserAgent = "stellar-ledger-data-indexer"
 )
 
