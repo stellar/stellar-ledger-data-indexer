@@ -2,10 +2,10 @@ package utils
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stellar/go/support/datastore"
+	"github.com/stellar/go/support/log"
 )
 
 type metricRecorder struct {
@@ -13,6 +13,8 @@ type metricRecorder struct {
 	MaxLedgerSequenceIndexedMetric   *prometheus.GaugeVec
 	ProcessingLedgerSequenceMetric   *prometheus.GaugeVec
 	MaxLedgerSequenceInGalexieMetric *prometheus.GaugeVec
+	Logger                           *log.Entry
+	Registry                         *prometheus.Registry
 }
 
 type MetricRecorder interface {
@@ -22,11 +24,12 @@ type MetricRecorder interface {
 	RegisterMaxLedgerSequenceInGalexieMetric(ctx context.Context, registry *prometheus.Registry, nameSpace string, dataStore datastore.DataStore)
 }
 
-func GetNewMetricRecorder(ctx context.Context, registry *prometheus.Registry, nameSpace string) MetricRecorder {
+func GetNewMetricRecorder(ctx context.Context, logger *log.Entry, registry *prometheus.Registry, nameSpace string) MetricRecorder {
 	var (
 		upsertCountMetric = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: nameSpace,
 			Name:      "upsert_count",
+			Help:      "Number of rows upserted into each table",
 		},
 			[]string{"table_name"},
 		)
@@ -35,6 +38,7 @@ func GetNewMetricRecorder(ctx context.Context, registry *prometheus.Registry, na
 			prometheus.GaugeOpts{
 				Namespace: nameSpace,
 				Name:      "ledger_sequence_processing",
+				Help:      "The ledger sequence currently being processed",
 			},
 			[]string{},
 		)
@@ -42,10 +46,12 @@ func GetNewMetricRecorder(ctx context.Context, registry *prometheus.Registry, na
 
 	registry.MustRegister(upsertCountMetric, processingLedgerSequenceMetric)
 
-	fmt.Println("Prometheus metric registered")
+	logger.Info("Prometheus metrics initialized")
 	return &metricRecorder{
 		UpsertCountMetric:              upsertCountMetric,
 		ProcessingLedgerSequenceMetric: processingLedgerSequenceMetric,
+		Logger:                         logger,
+		Registry:                       registry,
 	}
 }
 
@@ -61,11 +67,12 @@ func (metricRecorder *metricRecorder) RegisterMaxLedgerSequenceIndexedMetric(ctx
 	maxLedgerSequenceIndexedMetric := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Namespace: nameSpace,
 		Name:      "max_ledger_sequence_indexed",
+		Help:      "The latest ledger sequence indexed in the database",
 	},
 		func() float64 {
 			latestIndexedLedger, err := dbOperator.GetMaxLedgerSequence(ctx)
 			if err != nil {
-				fmt.Printf("Error fetching max ledger sequence indexed: %v\n", err)
+				metricRecorder.Logger.Errorf("Error fetching max ledger sequence indexed: %v", err)
 				return 0
 			}
 			return float64(latestIndexedLedger)
@@ -79,11 +86,12 @@ func (metricRecorder *metricRecorder) RegisterMaxLedgerSequenceInGalexieMetric(c
 		prometheus.GaugeOpts{
 			Namespace: nameSpace,
 			Name:      "max_ledger_sequence_in_galexie",
+			Help:      "The latest ledger sequence available in Galexie data store(upstream data)",
 		},
 		func() float64 {
 			latestNetworkLedger, err := datastore.FindLatestLedgerSequence(ctx, dataStore)
 			if err != nil {
-				fmt.Printf("Error fetching latest network ledger sequence: %v\n", err)
+				metricRecorder.Logger.Errorf("Error fetching latest network ledger sequence: %v", err)
 				return 0
 			}
 			return float64(latestNetworkLedger)

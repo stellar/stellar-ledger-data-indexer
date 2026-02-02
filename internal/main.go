@@ -112,7 +112,7 @@ func IndexData(config Config) {
 		Logger.Fatal("failed to create GCS data store:", err)
 		return
 	}
-	metricRecorder := utils.GetNewMetricRecorder(ctx, registry, nameSpace)
+	metricRecorder := utils.GetNewMetricRecorder(ctx, Logger, registry, nameSpace)
 
 	var outboundAdapters []utils.OutboundAdapter
 	postgresAdapter, err := getPostgresOutputAdapter(ctx, config.Dataset, config.PostgresConfig, metricRecorder)

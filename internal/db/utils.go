@@ -130,6 +130,9 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 		sql,
 		pqArrays...,
 	)
-	rowsAffected, _ = sqlRes.RowsAffected()
-	return rowsAffected, err
+	if err != nil {
+		return 0, fmt.Errorf("upsert rows exec failed: %w", err)
+	}
+
+	return sqlRes.RowsAffected()
 }
