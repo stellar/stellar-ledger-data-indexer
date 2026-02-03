@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS contract_data (
     key BYTEA,
     val BYTEA,
     closed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    live_until_ledger_sequence INTEGER,
     PRIMARY KEY (key_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_contract_id ON contract_data (contract_id);

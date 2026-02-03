@@ -21,7 +21,7 @@ type ttlDBOperator struct {
 }
 
 func NewTTLDBOperator(dbSession DBSession) TTLDBOperator {
-	return &ttlDBOperator{session: dbSession, table: "ttl"}
+	return &ttlDBOperator{session: dbSession, table: "contract_data"}
 }
 
 func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
@@ -42,14 +42,12 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 	upsertFields := []UpsertField{
 		{"key_hash", "text", keyHash},
 		{"live_until_ledger_sequence", "int", liveUntilLedgerSequence},
-		{"ledger_sequence", "int", ledgerSequence},
-		{"closed_at", "timestamp", closedAt},
 	}
 
 	upsertConditions := []UpsertCondition{
-		{"ledger_sequence", OpGT},
+		{"live_until_ledger_sequence", OpGT},
 	}
-	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
+	return i.session.UpdateExistingRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
 }
 
 func (i *ttlDBOperator) TableName() string {

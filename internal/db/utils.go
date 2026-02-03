@@ -132,3 +132,52 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 	)
 	return err
 }
+
+func (q *DBSession) UpdateExistingRows(ctx context.Context, table string, joinField string, fields []UpsertField, conditions []UpsertCondition) error {
+	unnestPart := make([]string, 0, len(fields))
+	updateSetPart := make([]string, 0, len(fields))
+	pqArrays := make([]interface{}, 0, len(fields))
+
+	// We need the field names for the SELECT part of the CTE
+	selectFields := make([]string, 0, len(fields))
+
+	for _, field := range fields {
+		unnestPart = append(unnestPart, fmt.Sprintf("unnest(?::%s[]) AS %s", field.dbType, field.name))
+		pqArrays = append(pqArrays, pq.Array(field.objects))
+		selectFields = append(selectFields, field.name)
+
+		// Don't update the join key itself
+		if field.name != joinField {
+			updateSetPart = append(updateSetPart, fmt.Sprintf("%s = data_source.%s", field.name, field.name))
+		}
+	}
+
+	// Build the Update Query
+	// UPDATE table SET col = val FROM (CTE) WHERE table.key = CTE.key
+	sql := fmt.Sprintf(`
+		WITH data_source AS (
+			SELECT %s
+		)
+		UPDATE %s
+		SET %s
+		FROM data_source
+		WHERE %s.%s = data_source.%s`,
+		strings.Join(unnestPart, ", "),
+		table,
+		strings.Join(updateSetPart, ", "),
+		table, joinField, joinField,
+	)
+
+	// Add your conditional logic (e.g., only update if new sequence > old sequence)
+	if len(conditions) > 0 {
+		conds := make([]string, 0, len(conditions))
+		for _, c := range conditions {
+			conds = append(conds, fmt.Sprintf("data_source.%s %s %s.%s", c.column, c.operator, table, c.column))
+		}
+		sql += " AND " + strings.Join(conds, " AND ")
+	}
+
+	fmt.Println(sql)
+	_, err := q.session.ExecRaw(ctx, sql, pqArrays...)
+	return err
+}
