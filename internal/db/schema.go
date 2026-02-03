@@ -21,4 +21,5 @@ type Operator string
 type UpsertCondition struct {
 	column   string
 	operator Operator
+	raw      string
 }

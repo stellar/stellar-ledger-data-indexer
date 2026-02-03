@@ -84,7 +84,7 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		{"closed_at", "timestamp", closedAt},
 	}
 	upsertConditions := []UpsertCondition{
-		{"ledger_sequence", OpGT},
+		{"ledger_sequence", OpGT, ""},
 	}
 	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
 }

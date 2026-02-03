@@ -45,7 +45,7 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 	}
 
 	upsertConditions := []UpsertCondition{
-		{"live_until_ledger_sequence", OpGT},
+		{"", "", "contract_data.live_until_ledger_sequence is null or contract_data.live_until_ledger_sequence < data_source.live_until_ledger_sequence"},
 	}
 	return i.session.UpdateExistingRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
 }

@@ -33,9 +33,9 @@ func (s *LedgerDataIndexerTestSuite) SetupSuite() {
 	fmt.Println("Using temporary Postgres DSN:", s.db.DSN)
 }
 
-// func (s *LedgerDataIndexerTestSuite) TearDownSuite() {
-// 	s.db.Close()
-// }
+func (s *LedgerDataIndexerTestSuite) TearDownSuite() {
+	s.db.Close()
+}
 
 func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 	require := s.Require()
@@ -45,7 +45,7 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 	var outWriter bytes.Buffer
 	rootCmd.SetErr(&errWriter)
 	rootCmd.SetOut(&outWriter)
-	rootCmd.SetArgs([]string{"append", "--start", "61029820", "--end", "61047099", "--dataset", "contract_data", "--config-file", s.tempConfigFile})
+	rootCmd.SetArgs([]string{"append", "--start", "59561994", "--end", "59562000", "--dataset", "contract_data", "--config-file", s.tempConfigFile})
 	err := rootCmd.ExecuteContext(s.ctx)
 	require.NoError(err)
 
@@ -54,7 +54,7 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 	s.T().Log(output)
 	s.T().Log(errOutput)
 
-	rootCmd.SetArgs([]string{"append", "--start", "61029820", "--end", "61047099", "--dataset", "ttl", "--backfill", "--config-file", s.tempConfigFile})
+	rootCmd.SetArgs([]string{"append", "--start", "59561994", "--end", "59562000", "--dataset", "ttl", "--backfill", "--config-file", s.tempConfigFile})
 	err = rootCmd.ExecuteContext(s.ctx)
 	require.NoError(err)
 
@@ -64,7 +64,7 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 	s.T().Log(errOutput)
 
 	sess := &db.Session{DB: s.db.Open()}
-	// defer sess.DB.Close()
+	defer sess.DB.Close()
 
 	type ContractRow struct {
 		ContractID              string `db:"contract_id"`
@@ -127,6 +127,34 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 	}
 	require.NoError(sess.SelectRaw(context.Background(), &actualHistoricalRecords, `SELECT contract_id, ledger_sequence, key_hash, durability, key_symbol, key, val, closed_at FROM contract_data where key_hash = '72b51b3784ece8d155164e1cb15488931742566809555e3b46b8734ef6fbd453' order by 1,2,3 limit 10;`))
 	require.Equal(expectedHistoricalRecords, actualHistoricalRecords)
+
+	var actualRecordsWithTTL []ContractRow
+	expectedRecordsWithTTL := []ContractRow{
+		{
+			ContractID:              "CAFJZQWSED6YAWZU3GWRTOCNPPCGBN32L7QV43XX5LZLFTK6JLN34DLN",
+			LedgerSequence:          59561998,
+			KeyHash:                 "083c5803f7556890f01084c5b339b331c6a484b482f128c912f5df78df60b00e",
+			Durability:              "temporary",
+			KeySymbol:               "",
+			Key:                     "AAAACQAAAZohhCYgAAAAAAAAAAo=",
+			Val:                     "AAAACgAAAAAAAAAAAAZ2mEKM0VI=",
+			ClosedAt:                "2025-10-26T17:15:24Z",
+			LiveUntilLedgerSequence: 61635599,
+		},
+		{
+			ContractID:              "CAFJZQWSED6YAWZU3GWRTOCNPPCGBN32L7QV43XX5LZLFTK6JLN34DLN",
+			LedgerSequence:          59561998,
+			KeyHash:                 "0da09bff57620014be2b220c48ab6b880038b2cae4af7d4c00cf5b6bed4741f8",
+			Durability:              "temporary",
+			KeySymbol:               "",
+			Key:                     "AAAACQAAAZohhCYgAAAAAAAAAAA=",
+			Val:                     "AAAACgAAAAAAAAAAnc5VUZBdVuI=",
+			ClosedAt:                "2025-10-26T17:15:24Z",
+			LiveUntilLedgerSequence: 61635599,
+		},
+	}
+	require.NoError(sess.SelectRaw(context.Background(), &actualRecordsWithTTL, `SELECT contract_id, ledger_sequence, key_hash, durability, key_symbol, key, val, closed_at, live_until_ledger_sequence FROM contract_data where live_until_ledger_sequence is not null order by 1,2,3 limit 2;`))
+	require.Equal(expectedRecordsWithTTL, actualRecordsWithTTL)
 
 }
 
