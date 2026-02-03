@@ -19,8 +19,13 @@ ON public.contract_data (contract_id, closed_at DESC, key_hash DESC);
 CREATE INDEX IF NOT EXISTS idx_contract_data_contract_durability
 ON public.contract_data (contract_id, durability, key_hash);
 
+-- 5. Cleanup redundant index
+DROP INDEX IF EXISTS idx_contract_data_key_symbol;
+
 
 -- +migrate Down
+
+CREATE INDEX IF NOT EXISTS idx_contract_data_key_symbol ON public.contract_data (key_symbol);
 
 DROP INDEX IF EXISTS idx_contract_data_contract_durability;
 DROP INDEX IF EXISTS idx_contract_data_contract_closed_at;
