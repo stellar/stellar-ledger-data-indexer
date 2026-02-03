@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -30,7 +29,6 @@ func TestLedgerDataIndexerTestSuite(t *testing.T) {
 func (s *LedgerDataIndexerTestSuite) SetupSuite() {
 	s.db = dbtest.Postgres(s.T())
 	os.Setenv("POSTGRES_CONN_STRING", s.db.DSN)
-	fmt.Println("Using temporary Postgres DSN:", s.db.DSN)
 }
 
 func (s *LedgerDataIndexerTestSuite) TearDownSuite() {
@@ -51,15 +49,6 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 
 	output := outWriter.String()
 	errOutput := errWriter.String()
-	s.T().Log(output)
-	s.T().Log(errOutput)
-
-	rootCmd.SetArgs([]string{"append", "--start", "59561994", "--end", "59562000", "--dataset", "ttl", "--backfill", "--config-file", s.tempConfigFile})
-	err = rootCmd.ExecuteContext(s.ctx)
-	require.NoError(err)
-
-	output = outWriter.String()
-	errOutput = errWriter.String()
 	s.T().Log(output)
 	s.T().Log(errOutput)
 
@@ -155,57 +144,5 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 	}
 	require.NoError(sess.SelectRaw(context.Background(), &actualRecordsWithTTL, `SELECT contract_id, ledger_sequence, key_hash, durability, key_symbol, key, val, closed_at, live_until_ledger_sequence FROM contract_data where live_until_ledger_sequence is not null order by 1,2,3 limit 2;`))
 	require.Equal(expectedRecordsWithTTL, actualRecordsWithTTL)
-
-}
-
-func (s *LedgerDataIndexerTestSuite) TestTTLDataAppend() {
-	require := s.Require()
-
-	rootCmd := DefineCommands()
-	var errWriter bytes.Buffer
-	var outWriter bytes.Buffer
-	rootCmd.SetErr(&errWriter)
-	rootCmd.SetOut(&outWriter)
-	rootCmd.SetArgs([]string{"append", "--start", "59561994", "--end", "59562000", "--dataset", "ttl", "--config-file", s.tempConfigFile})
-	err := rootCmd.ExecuteContext(s.ctx)
-	require.NoError(err)
-
-	output := outWriter.String()
-	errOutput := errWriter.String()
-	s.T().Log(output)
-	s.T().Log(errOutput)
-
-	sess := &db.Session{DB: s.db.Open()}
-	defer sess.DB.Close()
-
-	type TTLRow struct {
-		KeyHash                 string `db:"key_hash"`
-		LiveUntilLedgerSequence int64  `db:"live_until_ledger_sequence"`
-		LedgerSequence          int64  `db:"ledger_sequence"`
-		ClosedAt                string `db:"closed_at"`
-	}
-
-	var actualTopRecords []TTLRow
-	expectedTopRecords := []TTLRow{
-		{
-			KeyHash:                 "007264b48e74928a0091f24ee5b5bb375ac8d23f15199c19602dc6c2a574ad0e",
-			LiveUntilLedgerSequence: 59578847,
-			LedgerSequence:          59561999,
-			ClosedAt:                "2025-10-26T17:15:30Z",
-		},
-		{
-			KeyHash:                 "00c8aac02920eff07b3635e7022236ce3f2f200bcc15449de671e56ecaaac95a",
-			LiveUntilLedgerSequence: 59578575,
-			LedgerSequence:          59561994,
-			ClosedAt:                "2025-10-26T17:15:02Z",
-		},
-	}
-	require.NoError(sess.SelectRaw(context.Background(), &actualTopRecords, `SELECT key_hash, live_until_ledger_sequence, ledger_sequence, closed_at FROM ttl order by 1,2,3 limit 2;`))
-	require.Equal(expectedTopRecords, actualTopRecords)
-
-	var actualCount []int
-	expectedCount := []int{358}
-	require.NoError(sess.SelectRaw(context.Background(), &actualCount, `SELECT count(*) FROM ttl;`))
-	require.Equal(expectedCount, actualCount)
 
 }

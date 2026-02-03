@@ -79,12 +79,24 @@ func IndexData(config Config) {
 	defer stop()
 
 	var outboundAdapters []utils.OutboundAdapter
-	postgresAdapter, err := getPostgresOutputAdapter(ctx, config.Dataset, config.PostgresConfig)
-	if err != nil {
-		Logger.Fatal(err)
-		return
+	var processors []utils.Processor
+	datasets := []string{"contract_data", "ttl"}
+
+	for _, dataset := range datasets {
+		postgresAdapter, err := getPostgresOutputAdapter(ctx, dataset, config.PostgresConfig)
+		if err != nil {
+			Logger.Fatal(err)
+			return
+		}
+		processor, err := getProcessor(dataset, []utils.OutboundAdapter{postgresAdapter}, config.StellarCoreConfig.NetworkPassphrase)
+		if err != nil {
+			Logger.Fatal(err)
+			return
+		}
+
+		outboundAdapters = append(outboundAdapters, postgresAdapter)
+		processors = append(processors, processor)
 	}
-	outboundAdapters = append(outboundAdapters, postgresAdapter)
 
 	// Ensure adapters are closed on all exit paths
 	defer func() {
@@ -99,7 +111,7 @@ func IndexData(config Config) {
 		maxLedgerInDB = 0
 		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", config.StartLedger, config.EndLedger)
 	} else {
-		maxLedgerInDB, err = postgresAdapter.GetMaxLedgerSequence(ctx)
+		maxLedgerInDB, err := outboundAdapters[0].GetMaxLedgerSequence(ctx)
 		if err != nil {
 			Logger.Errorf("Failed to get max ledger sequence from database: %v. Proceeding with requested start ledger.", err)
 			maxLedgerInDB = 0
@@ -108,16 +120,10 @@ func IndexData(config Config) {
 		}
 	}
 
-	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
-	if err != nil {
-		Logger.Fatal(err)
-		return
-	}
-
 	reader, err := input.NewLedgerMetadataReader(
 		&config.DataStoreConfig,
 		config.StellarCoreConfig.HistoryArchiveUrls,
-		[]utils.Processor{processor},
+		processors,
 		config.StartLedger,
 		config.EndLedger,
 		config.Backfill,
