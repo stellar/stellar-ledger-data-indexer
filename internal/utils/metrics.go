@@ -21,7 +21,7 @@ type metricRecorder struct {
 }
 
 type MetricRecorder interface {
-	RecordUpsertCount(table string, count int64)
+	RecordUpsertCount(dataset string, count int64)
 	RecordProcessingLedgerSequence(sequence uint32)
 	RecordLedgerRangeStart(inputStartLedger uint32, inputEndLedger uint32, inputBackfill bool, maxLedgerInGalexie uint32, maxLedgerInIndexer uint32, actualStartLedger uint32)
 	RecordLedgerRangeEnd(inputStartLedger uint32, inputEndLedger uint32, inputBackfill bool, maxLedgerInGalexie uint32, maxLedgerInIndexer uint32, actualEndLedger uint32)
@@ -34,9 +34,9 @@ func GetNewMetricRecorder(ctx context.Context, logger *log.Entry, registry *prom
 		upsertCountMetric = prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: nameSpace,
 			Name:      "upsert_count",
-			Help:      "Number of rows upserted into each table",
+			Help:      "Number of rows upserted into the table",
 		},
-			[]string{"table_name"},
+			[]string{"dataset"},
 		)
 
 		processingLedgerSequenceMetric = prometheus.NewGaugeVec(
@@ -78,8 +78,8 @@ func GetNewMetricRecorder(ctx context.Context, logger *log.Entry, registry *prom
 	}
 }
 
-func (metricRecorder *metricRecorder) RecordUpsertCount(table string, count int64) {
-	metricRecorder.UpsertCountMetric.With(prometheus.Labels{"table_name": table}).Add(float64(count))
+func (metricRecorder *metricRecorder) RecordUpsertCount(dataset string, count int64) {
+	metricRecorder.UpsertCountMetric.With(prometheus.Labels{"dataset": dataset}).Add(float64(count))
 }
 
 func (metricRecorder *metricRecorder) RecordProcessingLedgerSequence(sequence uint32) {

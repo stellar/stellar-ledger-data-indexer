@@ -19,11 +19,12 @@ type TTLDBOperator interface {
 type ttlDBOperator struct {
 	session        DBSession
 	table          string
+	dataset        string
 	metricRecorder utils.MetricRecorder
 }
 
 func NewTTLDBOperator(dbSession DBSession, metricRecorder utils.MetricRecorder) TTLDBOperator {
-	return &ttlDBOperator{session: dbSession, table: "contract_data", metricRecorder: metricRecorder}
+	return &ttlDBOperator{session: dbSession, table: "contract_data", dataset: "ttl", metricRecorder: metricRecorder}
 }
 
 func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
@@ -46,7 +47,7 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 
 	upsertCondition := fmt.Sprintf("(%s.live_until_ledger_sequence is null or %s.live_until_ledger_sequence < data_source.live_until_ledger_sequence)", i.table, i.table)
 	rowsAffected, err := i.session.EnrichExistingRows(ctx, i.table, "key_hash", upsertFields, upsertCondition)
-	i.metricRecorder.RecordUpsertCount(i.table, rowsAffected)
+	i.metricRecorder.RecordUpsertCount(i.dataset, rowsAffected)
 	return err
 }
 

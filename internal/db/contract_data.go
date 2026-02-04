@@ -21,11 +21,12 @@ type ContractDataDBOperator interface {
 type contractDataDBOperator struct {
 	session        DBSession
 	table          string
+	dataset        string
 	metricRecorder utils.MetricRecorder
 }
 
 func NewContractDataDBOperator(dbSession DBSession, metricRecorder utils.MetricRecorder) ContractDataDBOperator {
-	return &contractDataDBOperator{session: dbSession, table: "contract_data", metricRecorder: metricRecorder}
+	return &contractDataDBOperator{session: dbSession, table: "contract_data", dataset: "contract_data", metricRecorder: metricRecorder}
 }
 
 func ExtractSymbol(keyDecoded map[string]string) string {
@@ -89,7 +90,7 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		{"ledger_sequence", OpGT},
 	}
 	rowsAffected, err := i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
-	i.metricRecorder.RecordUpsertCount(i.table, rowsAffected)
+	i.metricRecorder.RecordUpsertCount(i.dataset, rowsAffected)
 	return err
 }
 
