@@ -42,7 +42,7 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 		{"live_until_ledger_sequence", "int", liveUntilLedgerSequence},
 	}
 
-	upsertCondition := "(contract_data.live_until_ledger_sequence is null or contract_data.live_until_ledger_sequence < data_source.live_until_ledger_sequence)"
+	upsertCondition := fmt.Sprintf("(%s.live_until_ledger_sequence is null or %s.live_until_ledger_sequence < data_source.live_until_ledger_sequence)", i.table, i.table)
 	return i.session.EnrichExistingRows(ctx, i.table, "key_hash", upsertFields, upsertCondition)
 }
 

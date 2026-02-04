@@ -10,7 +10,7 @@ Stellar Ledger Data Indexer indexes ledger data by transaction_hash, contract_id
 2. Build stellar-ledger-data-indexer with `go build`
 
 ```sh
-$ ./stellar-ledger-data-indexer -config-file config.test.toml --start 58762521
+$ ./stellar-ledger-data-indexer --config-file config.test.toml --start 58762521
 ## You can also use --end to specify end ledger to import
 ```
 

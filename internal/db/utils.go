@@ -138,12 +138,9 @@ func (q *DBSession) EnrichExistingRows(ctx context.Context, table string, joinFi
 	updateSetPart := make([]string, 0, len(fields))
 	pqArrays := make([]interface{}, 0, len(fields))
 
-	selectFields := make([]string, 0, len(fields))
-
 	for _, field := range fields {
 		unnestPart = append(unnestPart, fmt.Sprintf("unnest(?::%s[]) AS %s", field.dbType, field.name))
 		pqArrays = append(pqArrays, pq.Array(field.objects))
-		selectFields = append(selectFields, field.name)
 
 		if field.name != joinField {
 			updateSetPart = append(updateSetPart, fmt.Sprintf("%s = data_source.%s", field.name, field.name))
