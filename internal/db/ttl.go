@@ -23,7 +23,7 @@ type ttlDBOperator struct {
 }
 
 func NewTTLDBOperator(dbSession DBSession, metricRecorder utils.MetricRecorder) TTLDBOperator {
-	return &ttlDBOperator{session: dbSession, table: "contract_data"}
+	return &ttlDBOperator{session: dbSession, table: "contract_data", metricRecorder: metricRecorder}
 }
 
 func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
