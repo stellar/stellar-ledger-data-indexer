@@ -1,6 +1,6 @@
 -- +migrate Up
 -- SQL in section 'Up' is executed when this migration is applied
-ALTER TABLE contract_data 
+ALTER TABLE contract_data
 ADD column IF NOT EXISTS live_until_ledger_sequence INTEGER;
 
 
