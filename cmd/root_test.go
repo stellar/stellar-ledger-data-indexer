@@ -35,7 +35,7 @@ func (s *LedgerDataIndexerTestSuite) TearDownSuite() {
 	s.db.Close()
 }
 
-func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
+func (s *LedgerDataIndexerTestSuite) TestIndex() {
 	require := s.Require()
 
 	rootCmd := DefineCommands()
@@ -43,7 +43,7 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 	var outWriter bytes.Buffer
 	rootCmd.SetErr(&errWriter)
 	rootCmd.SetOut(&outWriter)
-	rootCmd.SetArgs([]string{"append", "--start", "59561994", "--end", "59562000", "--dataset", "contract_data", "--config-file", s.tempConfigFile})
+	rootCmd.SetArgs([]string{"append", "--start", "59561994", "--end", "59562000", "--config-file", s.tempConfigFile})
 	err := rootCmd.ExecuteContext(s.ctx)
 	require.NoError(err)
 

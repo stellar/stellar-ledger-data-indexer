@@ -80,6 +80,8 @@ func IndexData(config Config) {
 
 	var outboundAdapters []utils.OutboundAdapter
 	var processors []utils.Processor
+	// Order is important here, as contract data entries needs to be processed before ttl entries
+	// ttl entries are enrichment to base contract data
 	datasets := []string{"contract_data", "ttl"}
 
 	for _, dataset := range datasets {
