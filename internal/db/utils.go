@@ -104,11 +104,6 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 		)
 	}
 	for _, condition := range conditions {
-		if condition.raw != "" {
-			onConflictConditionPart = append(onConflictConditionPart, condition.raw)
-			continue
-		}
-
 		if !condition.operator.Valid() {
 			return fmt.Errorf("invalid operator for condition on field %s", condition.column)
 		}
@@ -138,7 +133,7 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 	return err
 }
 
-func (q *DBSession) UpdateExistingRows(ctx context.Context, table string, joinField string, fields []UpsertField, conditions []UpsertCondition) error {
+func (q *DBSession) EnrichExistingRows(ctx context.Context, table string, joinField string, fields []UpsertField, condition string) error {
 	unnestPart := make([]string, 0, len(fields))
 	updateSetPart := make([]string, 0, len(fields))
 	pqArrays := make([]interface{}, 0, len(fields))
@@ -169,16 +164,8 @@ func (q *DBSession) UpdateExistingRows(ctx context.Context, table string, joinFi
 		table, joinField, joinField,
 	)
 
-	if len(conditions) > 0 {
-		conds := make([]string, 0, len(conditions))
-		for _, c := range conditions {
-			if c.raw != "" {
-				conds = append(conds, c.raw)
-				continue
-			}
-			conds = append(conds, fmt.Sprintf("data_source.%s %s %s.%s", c.column, c.operator, table, c.column))
-		}
-		sql += " AND " + strings.Join(conds, " AND ")
+	if condition != "" {
+		sql += " AND " + condition
 	}
 
 	_, err := q.session.ExecRaw(ctx, sql, pqArrays...)
