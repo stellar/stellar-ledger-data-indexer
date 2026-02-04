@@ -58,6 +58,7 @@ func (p *ContractDataProcessor) Process(ctx context.Context, msg utils.Message) 
 		return err
 	}
 
+	p.MetricRecorder.RecordProcessingLedgerSequence(uint32(lhe.Header.LedgerSeq))
 	p.Logger.Infof("Processed %d contracts in ledger sequence %d", len(contracts), lhe.Header.LedgerSeq)
 	var data []interface{}
 	for _, tx := range contracts {

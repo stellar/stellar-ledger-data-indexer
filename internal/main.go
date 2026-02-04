@@ -3,9 +3,15 @@ package internal
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 
+	"github.com/go-errors/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/stellar/go/support/datastore"
+	supporthttp "github.com/stellar/go/support/http"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/db"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/input"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/transform"
@@ -19,7 +25,7 @@ func PostgresConnString(cfg PostgresConfig) string {
 	)
 }
 
-func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, passPhrase string) (processor utils.Processor, err error) {
+func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, passPhrase string, metricRecorder utils.MetricRecorder) (processor utils.Processor, err error) {
 	switch dataset {
 	case "contract_data":
 		processor := &transform.ContractDataProcessor{
@@ -27,6 +33,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
 				Passphrase:       passPhrase,
+				MetricRecorder:   metricRecorder,
 			},
 		}
 		return processor, nil
@@ -36,6 +43,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 				OutboundAdapters: outboundAdapters,
 				Logger:           Logger,
 				Passphrase:       passPhrase,
+				MetricRecorder:   metricRecorder,
 			},
 		}
 		return processor, nil
@@ -63,13 +71,13 @@ func getPostgresSession(ctx context.Context, postgresConfig PostgresConfig) (*db
 	return session, nil
 }
 
-func getPostgresOutputAdapter(session *db.DBSession, dataset string) (*utils.PostgresAdapter, error) {
+func getPostgresOutputAdapter(session *db.DBSession, dataset string, metricRecorder utils.MetricRecorder) (*utils.PostgresAdapter, error) {
 	var dbOperator utils.DBOperator
 	switch dataset {
 	case "contract_data":
-		dbOperator = db.NewContractDataDBOperator(*session)
+		dbOperator = db.NewContractDataDBOperator(*session, metricRecorder)
 	case "ttl":
-		dbOperator = db.NewTTLDBOperator(*session)
+		dbOperator = db.NewTTLDBOperator(*session, metricRecorder)
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}
@@ -77,11 +85,38 @@ func getPostgresOutputAdapter(session *db.DBSession, dataset string) (*utils.Pos
 	return postgresAdapter, nil
 }
 
+func newAdminServer(adminPort int, prometheusRegistry *prometheus.Registry) *http.Server {
+	mux := supporthttp.NewMux(Logger)
+	mux.Handle("/metrics", promhttp.HandlerFor(prometheusRegistry, promhttp.HandlerOpts{}))
+	adminAddr := fmt.Sprintf(":%d", adminPort)
+	return &http.Server{
+		Addr:        adminAddr,
+		Handler:     mux,
+		ReadTimeout: adminServerReadTimeout,
+	}
+}
+
 func IndexData(config Config) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer stop()
 
-	var outboundAdapters []utils.OutboundAdapter
+	registry := prometheus.NewRegistry()
+	adminServer := newAdminServer(config.MetricsPort, registry)
+	go func() {
+		Logger.Infof("Starting admin server on port %v", config.MetricsPort)
+		if err := adminServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			Logger.Errorf("Admin server failed: %v", err)
+		}
+	}()
+
+	dataStore, err := datastore.NewGCSDataStore(ctx, config.DataStoreConfig)
+	if err != nil {
+		Logger.Fatal("failed to create GCS data store:", err)
+		return
+	}
+	metricRecorder := utils.GetNewMetricRecorder(ctx, Logger, registry, nameSpace)
+
+	var outboundAdapters []utils.PostgresAdapter
 	var processors []utils.Processor
 	// Order is important here, as contract data entries needs to be processed before ttl entries
 	// ttl entries are enrichment to base contract data
@@ -92,20 +127,22 @@ func IndexData(config Config) {
 		return
 	}
 	for _, dataset := range datasets {
-		postgresAdapter, err := getPostgresOutputAdapter(session, dataset)
+		postgresAdapter, err := getPostgresOutputAdapter(session, dataset, metricRecorder)
 		if err != nil {
 			Logger.Fatal(err)
 			return
 		}
-		processor, err := getProcessor(dataset, []utils.OutboundAdapter{postgresAdapter}, config.StellarCoreConfig.NetworkPassphrase)
+		processor, err := getProcessor(dataset, []utils.OutboundAdapter{postgresAdapter}, config.StellarCoreConfig.NetworkPassphrase, metricRecorder)
 		if err != nil {
 			Logger.Fatal(err)
 			return
 		}
 
-		outboundAdapters = append(outboundAdapters, postgresAdapter)
+		outboundAdapters = append(outboundAdapters, *postgresAdapter)
 		processors = append(processors, processor)
 	}
+	metricRecorder.RegisterMaxLedgerSequenceInGalexieMetric(ctx, registry, nameSpace, dataStore)
+	metricRecorder.RegisterMaxLedgerSequenceIndexedMetric(ctx, registry, nameSpace, outboundAdapters[0].DBOperator)
 
 	// Ensure adapters are closed on all exit paths
 	defer func() {
@@ -129,15 +166,21 @@ func IndexData(config Config) {
 			Logger.Infof("Max ledger sequence in database: %d", maxLedgerInDB)
 		}
 	}
+	maxLedgerInGalexie, err := datastore.FindLatestLedgerSequence(ctx, dataStore)
+	if err != nil {
+		Logger.Fatal("failed to fetch latest ledger sequence from Galexie:", err)
+		return
+	}
 
 	reader, err := input.NewLedgerMetadataReader(
 		&config.DataStoreConfig,
-		config.StellarCoreConfig.HistoryArchiveUrls,
 		processors,
 		config.StartLedger,
 		config.EndLedger,
 		config.Backfill,
 		maxLedgerInDB,
+		maxLedgerInGalexie,
+		metricRecorder,
 	)
 	if err != nil {
 		Logger.Fatal(err)
@@ -145,6 +188,16 @@ func IndexData(config Config) {
 	}
 
 	err = reader.Run(ctx, Logger)
+
+	if adminServer != nil {
+		serverShutdownCtx, serverShutdownCancel := context.WithTimeout(context.Background(), adminServerShutdownTimeout)
+		defer serverShutdownCancel()
+		Logger.Info("shutting down admin server")
+		if err := adminServer.Shutdown(serverShutdownCtx); err != nil {
+			Logger.WithError(err).Warn("error in internalServer.Shutdown")
+		}
+	}
+
 	if err != nil {
 		Logger.Fatal("ingestion pipeline failed:", err)
 	} else {

@@ -23,11 +23,13 @@ require (
 	cloud.google.com/go/iam v1.5.2 // indirect
 	cloud.google.com/go/monitoring v1.24.0 // indirect
 	cloud.google.com/go/storage v1.53.0 // indirect
+	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.29.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.51.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.49.6 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.36.5 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.11 // indirect
@@ -62,6 +64,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/fsouza/fake-gcs-server v1.52.3 // indirect
+	github.com/go-chi/chi v4.1.2+incompatible // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
@@ -90,6 +93,7 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
+	github.com/rs/cors v1.11.0 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/segmentio/go-loggly v0.5.1-0.20171222203950-eb91657e62b2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
@@ -112,13 +116,13 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.39.0 // indirect
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
-	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/api v0.233.0 // indirect
 	google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb // indirect
@@ -128,5 +132,6 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/djherbis/atime.v1 v1.0.0 // indirect
 	gopkg.in/djherbis/stream.v1 v1.3.1 // indirect
+	gopkg.in/tylerb/graceful.v1 v1.2.15 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

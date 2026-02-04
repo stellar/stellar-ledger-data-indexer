@@ -6,6 +6,7 @@ import (
 
 	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/support/db"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
 type TTLDBOperator interface {
@@ -16,11 +17,12 @@ type TTLDBOperator interface {
 }
 
 type ttlDBOperator struct {
-	session DBSession
-	table   string
+	session        DBSession
+	table          string
+	metricRecorder utils.MetricRecorder
 }
 
-func NewTTLDBOperator(dbSession DBSession) TTLDBOperator {
+func NewTTLDBOperator(dbSession DBSession, metricRecorder utils.MetricRecorder) TTLDBOperator {
 	return &ttlDBOperator{session: dbSession, table: "contract_data"}
 }
 
@@ -43,7 +45,9 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 	}
 
 	upsertCondition := fmt.Sprintf("(%s.live_until_ledger_sequence is null or %s.live_until_ledger_sequence < data_source.live_until_ledger_sequence)", i.table, i.table)
-	return i.session.EnrichExistingRows(ctx, i.table, "key_hash", upsertFields, upsertCondition)
+	rowsAffected, err := i.session.EnrichExistingRows(ctx, i.table, "key_hash", upsertFields, upsertCondition)
+	i.metricRecorder.RecordUpsertCount(i.table, rowsAffected)
+	return err
 }
 
 func (i *ttlDBOperator) TableName() string {
