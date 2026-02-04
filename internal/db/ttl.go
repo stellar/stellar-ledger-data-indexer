@@ -44,9 +44,10 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 		{"live_until_ledger_sequence", "int", liveUntilLedgerSequence},
 	}
 
-	upsertConditions := []UpsertCondition{
-		{"", "", "contract_data.live_until_ledger_sequence is null or contract_data.live_until_ledger_sequence < data_source.live_until_ledger_sequence"},
-	}
+	// upsertConditions := []UpsertCondition{
+	// 	{"", "", "(contract_data.live_until_ledger_sequence is null or contract_data.live_until_ledger_sequence < data_source.live_until_ledger_sequence)"},
+	// }
+	upsertConditions := []UpsertCondition{}
 	return i.session.UpdateExistingRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
 }
 

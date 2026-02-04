@@ -128,7 +128,7 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 			Key:                     "AAAACQAAAZohhCYgAAAAAAAAAAo=",
 			Val:                     "AAAACgAAAAAAAAAAAAZ2mEKM0VI=",
 			ClosedAt:                "2025-10-26T17:15:24Z",
-			LiveUntilLedgerSequence: 61635599,
+			LiveUntilLedgerSequence: 59579279,
 		},
 		{
 			ContractID:              "CAFJZQWSED6YAWZU3GWRTOCNPPCGBN32L7QV43XX5LZLFTK6JLN34DLN",
@@ -139,7 +139,7 @@ func (s *LedgerDataIndexerTestSuite) TestContractDataAppend() {
 			Key:                     "AAAACQAAAZohhCYgAAAAAAAAAAA=",
 			Val:                     "AAAACgAAAAAAAAAAnc5VUZBdVuI=",
 			ClosedAt:                "2025-10-26T17:15:24Z",
-			LiveUntilLedgerSequence: 61635599,
+			LiveUntilLedgerSequence: 59579279,
 		},
 	}
 	require.NoError(sess.SelectRaw(context.Background(), &actualRecordsWithTTL, `SELECT contract_id, ledger_sequence, key_hash, durability, key_symbol, key, val, closed_at, live_until_ledger_sequence FROM contract_data where live_until_ledger_sequence is not null order by 1,2,3 limit 2;`))
