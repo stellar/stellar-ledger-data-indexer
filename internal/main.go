@@ -44,7 +44,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 	}
 }
 
-func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfig PostgresConfig) (*utils.PostgresAdapter, error) {
+func getPostgresSession(ctx context.Context, postgresConfig PostgresConfig) (*db.DBSession, error) {
 	envPostgresConnString := os.Getenv("POSTGRES_CONN_STRING")
 	var connString string
 	if envPostgresConnString != "" {
@@ -60,7 +60,10 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 		return nil, fmt.Errorf("failed to create postgres session: %w", err)
 	}
 	Logger.Infof("Opened postgres and applied migrations")
+	return session, nil
+}
 
+func getPostgresOutputAdapter(session *db.DBSession, dataset string) (*utils.PostgresAdapter, error) {
 	var dbOperator utils.DBOperator
 	switch dataset {
 	case "contract_data":
@@ -83,9 +86,13 @@ func IndexData(config Config) {
 	// Order is important here, as contract data entries needs to be processed before ttl entries
 	// ttl entries are enrichment to base contract data
 	datasets := []string{"contract_data", "ttl"}
-
+	session, err := getPostgresSession(ctx, config.PostgresConfig)
+	if err != nil {
+		Logger.Fatal(err)
+		return
+	}
 	for _, dataset := range datasets {
-		postgresAdapter, err := getPostgresOutputAdapter(ctx, dataset, config.PostgresConfig)
+		postgresAdapter, err := getPostgresOutputAdapter(session, dataset)
 		if err != nil {
 			Logger.Fatal(err)
 			return
