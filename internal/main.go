@@ -121,7 +121,7 @@ func IndexData(config Config) {
 		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", config.StartLedger, config.EndLedger)
 	} else {
 		// Both outbound adapters write to the same database, so querying from the first is sufficient
-		maxLedgerInDB, err := outboundAdapters[0].GetMaxLedgerSequence(ctx)
+		maxLedgerInDB, err = outboundAdapters[0].GetMaxLedgerSequence(ctx)
 		if err != nil {
 			Logger.Errorf("Failed to get max ledger sequence from database: %v. Proceeding with requested start ledger.", err)
 			maxLedgerInDB = 0
