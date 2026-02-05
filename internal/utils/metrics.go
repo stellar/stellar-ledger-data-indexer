@@ -22,7 +22,7 @@ type metricRecorder struct {
 
 type MetricRecorder interface {
 	RecordUpsertCount(dataset string, count int64)
-	RecordProcessingLedgerSequence(sequence uint32)
+	RecordProcessingLedgerSequence(dataset string, sequence uint32)
 	RecordLedgerRangeStart(inputStartLedger uint32, inputEndLedger uint32, inputBackfill bool, maxLedgerInGalexie uint32, maxLedgerInIndexer uint32, actualStartLedger uint32)
 	RecordLedgerRangeEnd(inputStartLedger uint32, inputEndLedger uint32, inputBackfill bool, maxLedgerInGalexie uint32, maxLedgerInIndexer uint32, actualEndLedger uint32)
 	RegisterMaxLedgerSequenceIndexedMetric(ctx context.Context, registry *prometheus.Registry, nameSpace string, dbOperator DBOperator)
@@ -45,7 +45,7 @@ func GetNewMetricRecorder(ctx context.Context, logger *log.Entry, registry *prom
 				Name:      "ledger_sequence_processing",
 				Help:      "The ledger sequence currently being processed",
 			},
-			[]string{},
+			[]string{"dataset"},
 		)
 		ledgerRangeStartMetric = prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -82,8 +82,8 @@ func (metricRecorder *metricRecorder) RecordUpsertCount(dataset string, count in
 	metricRecorder.UpsertCountMetric.With(prometheus.Labels{"dataset": dataset}).Add(float64(count))
 }
 
-func (metricRecorder *metricRecorder) RecordProcessingLedgerSequence(sequence uint32) {
-	metricRecorder.ProcessingLedgerSequenceMetric.With(prometheus.Labels{}).Set(float64(sequence))
+func (metricRecorder *metricRecorder) RecordProcessingLedgerSequence(dataset string, sequence uint32) {
+	metricRecorder.ProcessingLedgerSequenceMetric.With(prometheus.Labels{"dataset": dataset}).Set(float64(sequence))
 }
 
 func (metricRecorder *metricRecorder) RecordLedgerRangeStart(inputStartLedger uint32, inputEndLedger uint32, inputBackfill bool, maxLedgerInGalexie uint32, maxLedgerInIndexer uint32, actualStartLedger uint32) {
