@@ -44,7 +44,6 @@ type RuntimeSettings struct {
 	StartLedger    uint32
 	EndLedger      uint32
 	ConfigFilePath string
-	Dataset        string
 	Backfill       bool
 }
 
@@ -61,7 +60,6 @@ type Config struct {
 	PostgresConfig    PostgresConfig            `toml:"postgres_config"`
 	StartLedger       uint32
 	EndLedger         uint32
-	Dataset           string
 	Backfill          bool
 }
 
@@ -73,7 +71,6 @@ func NewConfig(settings RuntimeSettings) (*Config, error) {
 
 	config.StartLedger = uint32(settings.StartLedger)
 	config.EndLedger = uint32(settings.EndLedger)
-	config.Dataset = settings.Dataset
 	config.Backfill = settings.Backfill
 
 	Logger.Infof("Requested export with start=%d, end=%d, backfill=%t", config.StartLedger, config.EndLedger, config.Backfill)

@@ -21,13 +21,13 @@ type ttlDBOperator struct {
 }
 
 func NewTTLDBOperator(dbSession DBSession) TTLDBOperator {
-	return &ttlDBOperator{session: dbSession, table: "ttl"}
+	return &ttlDBOperator{session: dbSession, table: "contract_data"}
 }
 
 func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 	rawRecords := data.([]interface{})
 
-	var keyHash, liveUntilLedgerSequence, ledgerSequence, closedAt []interface{}
+	var keyHash, liveUntilLedgerSequence []interface{}
 	for _, rawRecord := range rawRecords {
 		ttlData, ok := rawRecord.(contract.TtlOutput)
 		if !ok {
@@ -35,21 +35,15 @@ func (i *ttlDBOperator) Upsert(ctx context.Context, data any) error {
 		}
 		keyHash = append(keyHash, ttlData.KeyHash)
 		liveUntilLedgerSequence = append(liveUntilLedgerSequence, ttlData.LiveUntilLedgerSeq)
-		closedAt = append(closedAt, ttlData.ClosedAt)
-		ledgerSequence = append(ledgerSequence, ttlData.LedgerSequence)
 	}
 
 	upsertFields := []UpsertField{
 		{"key_hash", "text", keyHash},
 		{"live_until_ledger_sequence", "int", liveUntilLedgerSequence},
-		{"ledger_sequence", "int", ledgerSequence},
-		{"closed_at", "timestamp", closedAt},
 	}
 
-	upsertConditions := []UpsertCondition{
-		{"ledger_sequence", OpGT},
-	}
-	return i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
+	upsertCondition := fmt.Sprintf("(%s.live_until_ledger_sequence is null or %s.live_until_ledger_sequence < data_source.live_until_ledger_sequence)", i.table, i.table)
+	return i.session.EnrichExistingRows(ctx, i.table, "key_hash", upsertFields, upsertCondition)
 }
 
 func (i *ttlDBOperator) TableName() string {
