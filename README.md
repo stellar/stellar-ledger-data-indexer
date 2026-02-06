@@ -13,8 +13,9 @@ Stellar Ledger Data Indexer is a light weight application that indexes contract 
 2. Build stellar-ledger-data-indexer with `go build`
 
 ```sh
-$ ./stellar-ledger-data-indexer -config-file config.test.toml --start 58762521
+$ ./stellar-ledger-data-indexer append -config-file config.test.toml --start 58762521 --metrics-port 8081
 ## You can also use --end to specify end ledger to import
+## Metrics can be accessed at https://localhost:8081/metrics
 ```
 
 ### Docker
