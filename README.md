@@ -2,7 +2,7 @@
 
 Stellar Ledger Data Indexer is a lightweight application that indexes contract data from Stellar ledger data. It can be extended to index other kinds of datasets.
 
-![img](./docs/ledger-indexer.png)
+![Architecture diagram of the Stellar Ledger Data Indexer components and data flow](./docs/ledger-indexer.png)
 
 # Install
 
