@@ -71,7 +71,13 @@ func getPostgresSession(ctx context.Context, postgresConfig PostgresConfig) (*db
 	return session, nil
 }
 
-func getPostgresOutputAdapter(session *db.DBSession, dataset string, metricRecorder utils.MetricRecorder) (*utils.PostgresAdapter, error) {
+func getPostgresOutputAdapter(ctx context.Context, config Config, dataset string, metricRecorder utils.MetricRecorder) (*utils.PostgresAdapter, error) {
+	session, err := getPostgresSession(ctx, config.PostgresConfig)
+	if err != nil {
+		Logger.Fatal(err)
+		return nil, err
+	}
+
 	var dbOperator utils.DBOperator
 	switch dataset {
 	case "contract_data":
@@ -121,13 +127,8 @@ func IndexData(config Config) {
 	// Order is important here, as contract data entries needs to be processed before ttl entries
 	// ttl entries are enrichment to base contract data
 	datasets := []string{"contract_data", "ttl"}
-	session, err := getPostgresSession(ctx, config.PostgresConfig)
-	if err != nil {
-		Logger.Fatal(err)
-		return
-	}
 	for _, dataset := range datasets {
-		postgresAdapter, err := getPostgresOutputAdapter(session, dataset, metricRecorder)
+		postgresAdapter, err := getPostgresOutputAdapter(ctx, config, dataset, metricRecorder)
 		if err != nil {
 			Logger.Fatal(err)
 			return
@@ -141,8 +142,16 @@ func IndexData(config Config) {
 		outboundAdapters = append(outboundAdapters, *postgresAdapter)
 		processors = append(processors, processor)
 	}
+
+	metricsAdapter, err := getPostgresOutputAdapter(ctx, config, "contract_data", metricRecorder)
+	if err != nil {
+		Logger.Fatal(err)
+		return
+	}
+	outboundAdapters = append(outboundAdapters, *metricsAdapter)
+
 	metricRecorder.RegisterMaxLedgerSequenceInGalexieMetric(ctx, registry, nameSpace, dataStore)
-	metricRecorder.RegisterMaxLedgerSequenceIndexedMetric(ctx, registry, nameSpace, outboundAdapters[0].DBOperator)
+	metricRecorder.RegisterMaxLedgerSequenceIndexedMetric(ctx, registry, nameSpace, metricsAdapter.DBOperator)
 
 	// Ensure adapters are closed on all exit paths
 	defer func() {
@@ -158,7 +167,7 @@ func IndexData(config Config) {
 		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", config.StartLedger, config.EndLedger)
 	} else {
 		// Both outbound adapters write to the same database, so querying from the first is sufficient
-		maxLedgerInDB, err = outboundAdapters[0].GetMaxLedgerSequence(ctx)
+		maxLedgerInDB, err = metricsAdapter.GetMaxLedgerSequence(ctx)
 		if err != nil {
 			Logger.Errorf("Failed to get max ledger sequence from database: %v. Proceeding with requested start ledger.", err)
 			maxLedgerInDB = 0
