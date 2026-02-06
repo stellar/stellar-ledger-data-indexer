@@ -18,7 +18,6 @@ func chunkRecords[T any](records []T, chunkSize int) [][]T {
 }
 
 func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
-	p.DBOperator.Session().Begin(ctx)
 
 	var records []interface{}
 	switch msg.Payload.(type) {
@@ -32,6 +31,7 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 
 	const batchSize = 1000
 	for _, batch := range chunkRecords(records, batchSize) {
+		p.DBOperator.Session().Begin(ctx)
 		if err := p.DBOperator.Upsert(ctx, batch); err != nil {
 			return fmt.Errorf("error adding batch to %s: %w", p.DBOperator.TableName(), err)
 		}
@@ -39,12 +39,6 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 		if err != nil {
 			return fmt.Errorf("error flushing batch insert to %s: %w", p.DBOperator.TableName(), err)
 		}
-		p.DBOperator.Session().Begin(ctx)
-	}
-
-	if err := p.Flush(ctx); err != nil {
-		return fmt.Errorf("final flush failed for %s: %w",
-			p.DBOperator.TableName(), err)
 	}
 
 	p.Logger.Info("Insert completed successfully", "table", p.DBOperator.TableName(), "records", len(records))
