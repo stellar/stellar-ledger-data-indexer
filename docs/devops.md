@@ -9,7 +9,7 @@ $ ./stellar-ledger-data-indexer -config-file config.test.toml --start 58762521
 
 $ ./stellar-ledger-data-indexer -config-file config.test.toml --start 58762521 --backfill
 
-# If backfill flag is set,indexer disregards the max ledger in DB and reprocesses for given start/end ledger. In above case, it will start from 58762521. Note that it only overwrites records if there exists new version of given key_hash.
+# If backfill flag is set, indexer disregards the max ledger in DB and reprocesses for given start/end ledger. In above case, it will start from 58762521. Note that it only overwrites records if there exists new version of given key_hash.
 
 $ ./stellar-ledger-data-indexer -config-file config.test.toml --start 58762521 --end 58762530
 
