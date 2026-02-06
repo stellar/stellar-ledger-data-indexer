@@ -1,6 +1,6 @@
-## Setting up instance
+## Setting up an instance
 
-The ledger data indexer can be setup using Kube clusters. A user can start an instance with following command:
+The ledger data indexer can be set up using Kubernetes clusters. A user can start an instance with the following commands:
 
 ```sh
 $ ./stellar-ledger-data-indexer -config-file config.test.toml --start 58762521
