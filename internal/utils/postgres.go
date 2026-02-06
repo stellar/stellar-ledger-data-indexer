@@ -2,8 +2,30 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
+
+	"github.com/lib/pq"
 )
+
+const (
+	maxRetries  = 5
+	baseBackoff = 50 * time.Millisecond
+)
+
+func isRetryable(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		switch pqErr.Code {
+		case "40P01": // deadlock_detected
+			return true
+		case "40001": // serialization_failure
+			return true
+		}
+	}
+	return false
+}
 
 func chunkRecords[T any](records []T, chunkSize int) [][]T {
 	var chunks [][]T
@@ -29,15 +51,44 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 		records = []interface{}{msg.Payload}
 	}
 
-	const batchSize = 1000
+	const batchSize = 100
 	for _, batch := range chunkRecords(records, batchSize) {
-		p.DBOperator.Session().Begin(ctx)
-		if err := p.DBOperator.Upsert(ctx, batch); err != nil {
-			return fmt.Errorf("error adding batch to %s: %w", p.DBOperator.TableName(), err)
+		var lastErr error
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			p.DBOperator.Session().Begin(ctx)
+			err := p.DBOperator.Upsert(ctx, batch)
+			if err == nil {
+				err = p.Flush(ctx)
+			}
+			if err == nil {
+				// Success
+				lastErr = nil
+				break
+			}
+
+			if isRetryable(err) {
+				lastErr = err
+				backoff := time.Duration(attempt+1) * baseBackoff
+				p.Logger.Warn(
+					"retryable db error, retrying",
+					"table", p.DBOperator.TableName(),
+					"attempt", attempt+1,
+					"backoff", backoff,
+					"err", err,
+				)
+				time.Sleep(backoff)
+				continue
+			}
+
+			// Non-retryable error
+			return fmt.Errorf("error adding batch to %s: %w",
+				p.DBOperator.TableName(), err)
 		}
-		err := p.Flush(ctx)
-		if err != nil {
-			return fmt.Errorf("error flushing batch insert to %s: %w", p.DBOperator.TableName(), err)
+		if lastErr != nil {
+			return fmt.Errorf(
+				"exceeded retries for table %s: %w",
+				p.DBOperator.TableName(), lastErr,
+			)
 		}
 	}
 
