@@ -52,7 +52,8 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 	for _, batch := range chunkRecords(records, batchSize) {
 		var lastErr error
 		for attempt := 0; attempt < maxRetries; attempt++ {
-			p.DBOperator.Session().Begin(ctx)
+			tx := p.DBOperator.Session()
+			tx.Begin(ctx)
 			err := p.DBOperator.Upsert(ctx, batch)
 			if err == nil {
 				err = p.Flush(ctx)
@@ -62,6 +63,8 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 				lastErr = nil
 				break
 			}
+			// rollback transaction on error
+			tx.Rollback()
 
 			if isRetryable() {
 				lastErr = err
