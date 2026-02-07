@@ -2,11 +2,8 @@ package utils
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
-
-	"github.com/lib/pq"
 )
 
 const (
@@ -14,17 +11,17 @@ const (
 	baseBackoff = 50 * time.Millisecond
 )
 
-func isRetryable(err error) bool {
-	var pqErr *pq.Error
-	if errors.As(err, &pqErr) {
-		switch pqErr.Code {
-		case "40P01": // deadlock_detected
-			return true
-		case "40001": // serialization_failure
-			return true
-		}
-	}
-	return false
+func isRetryable() bool {
+	// var pqErr *pq.Error
+	// if errors.As(err, &pqErr) {
+	// 	switch pqErr.Code {
+	// 	case "40P01": // deadlock_detected
+	// 		return true
+	// 	case "40001": // serialization_failure
+	// 		return true
+	// 	}
+	// }
+	return true
 }
 
 func chunkRecords[T any](records []T, chunkSize int) [][]T {
@@ -66,7 +63,7 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 				break
 			}
 
-			if isRetryable(err) {
+			if isRetryable() {
 				lastErr = err
 				backoff := time.Duration(attempt+1) * baseBackoff
 				p.Logger.Warn(
