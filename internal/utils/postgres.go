@@ -8,7 +8,7 @@ import (
 
 const (
 	maxRetries  = 5
-	baseBackoff = 50 * time.Millisecond
+	baseBackoff = 5000 * time.Millisecond
 )
 
 func isRetryable() bool {
