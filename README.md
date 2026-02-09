@@ -1,6 +1,8 @@
 # stellar-ledger-data-indexer
 
-Stellar Ledger Data Indexer indexes ledger data by transaction_hash, contract_id, etc
+Stellar Ledger Data Indexer is a lightweight application that indexes contract data from Stellar ledger data. It can be extended to index other kinds of datasets.
+
+![Architecture diagram of the Stellar Ledger Data Indexer components and data flow](./docs/ledger-indexer.png)
 
 # Install
 
@@ -10,8 +12,10 @@ Stellar Ledger Data Indexer indexes ledger data by transaction_hash, contract_id
 2. Build stellar-ledger-data-indexer with `go build`
 
 ```sh
-$ ./stellar-ledger-data-indexer --config-file config.test.toml --start 58762521
-## You can also use --end to specify end ledger to import
+$ ./stellar-ledger-data-indexer append -config-file config.test.toml --start 58762521 --metrics-port 8081
+
+# You can also use --end to specify end ledger to import
+## Metrics can be accessed at https://localhost:8081/metrics
 ```
 
 ### Docker
