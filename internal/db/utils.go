@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/stellar/go/support/db"
@@ -58,19 +59,11 @@ func NewPostgresSession(ctx context.Context, connStr string) (*DBSession, error)
 // GetMaxLedgerSequence returns the maximum ledger_sequence from the specified table.
 // Returns 0 if the table is empty. Returns an error if the table name is invalid or if the query fails.
 func (q *DBSession) GetMaxLedgerSequence(ctx context.Context, tableName string) (uint32, error) {
-	// Validate table name against allowed tables to prevent SQL injection
-	// Using a map to also prepare queries with validated table names
-	allowedQueries := map[string]string{
-		"contract_data": "SELECT COALESCE(MAX(ledger_sequence), 0) FROM contract_data",
-		"ttl":           "SELECT COALESCE(MAX(ledger_sequence), 0) FROM ttl",
-	}
-	query, ok := allowedQueries[tableName]
-	if !ok {
-		return 0, fmt.Errorf("invalid table name: %s", tableName)
-	}
-
+	query := sq.
+		Select("MAX(ledger_sequence)").
+		From(tableName)
 	var maxLedger uint32
-	err := q.session.GetRaw(ctx, &maxLedger, query)
+	err := q.session.Get(ctx, &maxLedger, query)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get max ledger sequence from %s: %w", tableName, err)
 	}
@@ -78,7 +71,7 @@ func (q *DBSession) GetMaxLedgerSequence(ctx context.Context, tableName string) 
 }
 
 // Extended from https://github.com/stellar/stellar-horizon/blob/main/internal/db2/history/main.go
-func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField string, fields []UpsertField, conditions []UpsertCondition) error {
+func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField string, fields []UpsertField, conditions []UpsertCondition) (rowsAffected int64, err error) {
 	unnestPart := make([]string, 0, len(fields))
 	insertFieldsPart := make([]string, 0, len(fields))
 	onConflictPart := make([]string, 0, len(fields))
@@ -105,7 +98,7 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 	}
 	for _, condition := range conditions {
 		if !condition.operator.Valid() {
-			return fmt.Errorf("invalid operator for condition on field %s", condition.column)
+			return 0, fmt.Errorf("invalid operator for condition on field %s", condition.column)
 		}
 		onConflictConditionPart = append(
 			onConflictConditionPart,
@@ -125,15 +118,18 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 		sql += " WHERE " + strings.Join(onConflictConditionPart, " AND ")
 	}
 
-	_, err := q.session.ExecRaw(
+	sqlRes, err := q.session.ExecRaw(
 		context.WithValue(ctx, &db.QueryTypeContextKey, db.UpsertQueryType),
 		sql,
 		pqArrays...,
 	)
-	return err
+	if err != nil {
+		return 0, fmt.Errorf("upsert rows exec failed: %w", err)
+	}
+	return sqlRes.RowsAffected()
 }
 
-func (q *DBSession) EnrichExistingRows(ctx context.Context, table string, joinField string, fields []UpsertField, condition string) error {
+func (q *DBSession) EnrichExistingRows(ctx context.Context, table string, joinField string, fields []UpsertField, condition string) (rowsAffected int64, err error) {
 	unnestPart := make([]string, 0, len(fields))
 	updateSetPart := make([]string, 0, len(fields))
 	pqArrays := make([]interface{}, 0, len(fields))
@@ -165,6 +161,10 @@ func (q *DBSession) EnrichExistingRows(ctx context.Context, table string, joinFi
 		sql += " AND " + condition
 	}
 
-	_, err := q.session.ExecRaw(ctx, sql, pqArrays...)
-	return err
+	sqlRes, err := q.session.ExecRaw(ctx, sql, pqArrays...)
+	if err != nil {
+		return 0, fmt.Errorf("enrich existing rows exec failed: %w", err)
+	}
+
+	return sqlRes.RowsAffected()
 }
