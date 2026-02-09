@@ -11,19 +11,6 @@ const (
 	baseBackoff = 5000 * time.Millisecond
 )
 
-func isRetryable() bool {
-	// var pqErr *pq.Error
-	// if errors.As(err, &pqErr) {
-	// 	switch pqErr.Code {
-	// 	case "40P01": // deadlock_detected
-	// 		return true
-	// 	case "40001": // serialization_failure
-	// 		return true
-	// 	}
-	// }
-	return true
-}
-
 func chunkRecords[T any](records []T, chunkSize int) [][]T {
 	var chunks [][]T
 	for i := 0; i < len(records); i += chunkSize {
@@ -48,7 +35,7 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 		records = []interface{}{msg.Payload}
 	}
 
-	const batchSize = 100
+	const batchSize = 1000
 	for _, batch := range chunkRecords(records, batchSize) {
 		var lastErr error
 		for attempt := 0; attempt < maxRetries; attempt++ {
@@ -66,19 +53,17 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 			// rollback transaction on error
 			tx.Rollback()
 
-			if isRetryable() {
-				lastErr = err
-				backoff := time.Duration(attempt+1) * baseBackoff
-				p.Logger.Warn(
-					"retryable db error, retrying",
-					"table", p.DBOperator.TableName(),
-					"attempt", attempt+1,
-					"backoff", backoff,
-					"err", err,
-				)
-				time.Sleep(backoff)
-				continue
-			}
+			lastErr = err
+			backoff := time.Duration(attempt+1) * baseBackoff
+			p.Logger.Warn(
+				"retryable db error, retrying",
+				"table", p.DBOperator.TableName(),
+				"attempt", attempt+1,
+				"backoff", backoff,
+				"err", err,
+			)
+			time.Sleep(backoff)
+			continue
 
 			// Non-retryable error
 			return fmt.Errorf("error adding batch to %s: %w",
