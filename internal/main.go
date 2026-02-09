@@ -44,7 +44,7 @@ func getProcessor(dataset string, outboundAdapters []utils.OutboundAdapter, pass
 	}
 }
 
-func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfig PostgresConfig) (*utils.PostgresAdapter, error) {
+func getPostgresSession(ctx context.Context, postgresConfig PostgresConfig) (*db.DBSession, error) {
 	envPostgresConnString := os.Getenv("POSTGRES_CONN_STRING")
 	var connString string
 	if envPostgresConnString != "" {
@@ -60,7 +60,10 @@ func getPostgresOutputAdapter(ctx context.Context, dataset string, postgresConfi
 		return nil, fmt.Errorf("failed to create postgres session: %w", err)
 	}
 	Logger.Infof("Opened postgres and applied migrations")
+	return session, nil
+}
 
+func getPostgresOutputAdapter(session *db.DBSession, dataset string) (*utils.PostgresAdapter, error) {
 	var dbOperator utils.DBOperator
 	switch dataset {
 	case "contract_data":
@@ -79,12 +82,30 @@ func IndexData(config Config) {
 	defer stop()
 
 	var outboundAdapters []utils.OutboundAdapter
-	postgresAdapter, err := getPostgresOutputAdapter(ctx, config.Dataset, config.PostgresConfig)
+	var processors []utils.Processor
+	// Order is important here, as contract data entries needs to be processed before ttl entries
+	// ttl entries are enrichment to base contract data
+	datasets := []string{"contract_data", "ttl"}
+	session, err := getPostgresSession(ctx, config.PostgresConfig)
 	if err != nil {
 		Logger.Fatal(err)
 		return
 	}
-	outboundAdapters = append(outboundAdapters, postgresAdapter)
+	for _, dataset := range datasets {
+		postgresAdapter, err := getPostgresOutputAdapter(session, dataset)
+		if err != nil {
+			Logger.Fatal(err)
+			return
+		}
+		processor, err := getProcessor(dataset, []utils.OutboundAdapter{postgresAdapter}, config.StellarCoreConfig.NetworkPassphrase)
+		if err != nil {
+			Logger.Fatal(err)
+			return
+		}
+
+		outboundAdapters = append(outboundAdapters, postgresAdapter)
+		processors = append(processors, processor)
+	}
 
 	// Ensure adapters are closed on all exit paths
 	defer func() {
@@ -99,7 +120,8 @@ func IndexData(config Config) {
 		maxLedgerInDB = 0
 		Logger.Infof("Backfill mode enabled: Using exact start=%d and end=%d ledgers as provided", config.StartLedger, config.EndLedger)
 	} else {
-		maxLedgerInDB, err = postgresAdapter.GetMaxLedgerSequence(ctx)
+		// Both outbound adapters write to the same database, so querying from the first is sufficient
+		maxLedgerInDB, err = outboundAdapters[0].GetMaxLedgerSequence(ctx)
 		if err != nil {
 			Logger.Errorf("Failed to get max ledger sequence from database: %v. Proceeding with requested start ledger.", err)
 			maxLedgerInDB = 0
@@ -108,16 +130,10 @@ func IndexData(config Config) {
 		}
 	}
 
-	processor, err := getProcessor(config.Dataset, outboundAdapters, config.StellarCoreConfig.NetworkPassphrase)
-	if err != nil {
-		Logger.Fatal(err)
-		return
-	}
-
 	reader, err := input.NewLedgerMetadataReader(
 		&config.DataStoreConfig,
 		config.StellarCoreConfig.HistoryArchiveUrls,
-		[]utils.Processor{processor},
+		processors,
 		config.StartLedger,
 		config.EndLedger,
 		config.Backfill,

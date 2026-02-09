@@ -21,6 +21,7 @@ type Message struct {
 type OutboundAdapter interface {
 	Write(ctx context.Context, message Message) error
 	Close()
+	GetMaxLedgerSequence(ctx context.Context) (uint32, error)
 }
 
 type PostgresAdapter struct {

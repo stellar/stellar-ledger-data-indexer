@@ -132,3 +132,39 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 	)
 	return err
 }
+
+func (q *DBSession) EnrichExistingRows(ctx context.Context, table string, joinField string, fields []UpsertField, condition string) error {
+	unnestPart := make([]string, 0, len(fields))
+	updateSetPart := make([]string, 0, len(fields))
+	pqArrays := make([]interface{}, 0, len(fields))
+
+	for _, field := range fields {
+		unnestPart = append(unnestPart, fmt.Sprintf("unnest(?::%s[]) AS %s", field.dbType, field.name))
+		pqArrays = append(pqArrays, pq.Array(field.objects))
+
+		if field.name != joinField {
+			updateSetPart = append(updateSetPart, fmt.Sprintf("%s = data_source.%s", field.name, field.name))
+		}
+	}
+
+	sql := fmt.Sprintf(`
+		WITH data_source AS (
+			SELECT %s
+		)
+		UPDATE %s
+		SET %s
+		FROM data_source
+		WHERE %s.%s = data_source.%s`,
+		strings.Join(unnestPart, ", "),
+		table,
+		strings.Join(updateSetPart, ", "),
+		table, joinField, joinField,
+	)
+
+	if condition != "" {
+		sql += " AND " + condition
+	}
+
+	_, err := q.session.ExecRaw(ctx, sql, pqArrays...)
+	return err
+}

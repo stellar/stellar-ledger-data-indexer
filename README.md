@@ -13,6 +13,7 @@ Stellar Ledger Data Indexer is a lightweight application that indexes contract d
 
 ```sh
 $ ./stellar-ledger-data-indexer append -config-file config.test.toml --start 58762521 --metrics-port 8081
+
 # You can also use --end to specify end ledger to import
 ## Metrics can be accessed at https://localhost:8081/metrics
 ```
