@@ -3,6 +3,12 @@ package utils
 import (
 	"context"
 	"fmt"
+	"time"
+)
+
+const (
+	maxRetries  = 5
+	baseBackoff = 5000 * time.Millisecond
 )
 
 func chunkRecords[T any](records []T, chunkSize int) [][]T {
@@ -18,7 +24,6 @@ func chunkRecords[T any](records []T, chunkSize int) [][]T {
 }
 
 func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
-	p.DBOperator.Session().Begin(ctx)
 
 	var records []interface{}
 	switch msg.Payload.(type) {
@@ -32,19 +37,44 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 
 	const batchSize = 1000
 	for _, batch := range chunkRecords(records, batchSize) {
-		if err := p.DBOperator.Upsert(ctx, batch); err != nil {
-			return fmt.Errorf("error adding batch to %s: %w", p.DBOperator.TableName(), err)
-		}
-		err := p.Flush(ctx)
-		if err != nil {
-			return fmt.Errorf("error flushing batch insert to %s: %w", p.DBOperator.TableName(), err)
-		}
-		p.DBOperator.Session().Begin(ctx)
-	}
+		var lastErr error
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			tx := p.DBOperator.Session()
+			tx.Begin(ctx)
+			err := p.DBOperator.Upsert(ctx, batch)
+			if err == nil {
+				err = p.Flush(ctx)
+			}
+			if err == nil {
+				// Success
+				lastErr = nil
+				break
+			}
+			// rollback transaction on error
+			tx.Rollback()
 
-	if err := p.Flush(ctx); err != nil {
-		return fmt.Errorf("final flush failed for %s: %w",
-			p.DBOperator.TableName(), err)
+			lastErr = err
+			backoff := time.Duration(attempt+1) * baseBackoff
+			p.Logger.Warn(
+				"retryable db error, retrying",
+				"table", p.DBOperator.TableName(),
+				"attempt", attempt+1,
+				"backoff", backoff,
+				"err", err,
+			)
+			time.Sleep(backoff)
+			continue
+
+			// Non-retryable error
+			return fmt.Errorf("error adding batch to %s: %w",
+				p.DBOperator.TableName(), err)
+		}
+		if lastErr != nil {
+			return fmt.Errorf(
+				"exceeded retries for table %s: %w",
+				p.DBOperator.TableName(), lastErr,
+			)
+		}
 	}
 
 	p.Logger.Info("Insert completed successfully", "table", p.DBOperator.TableName(), "records", len(records))
