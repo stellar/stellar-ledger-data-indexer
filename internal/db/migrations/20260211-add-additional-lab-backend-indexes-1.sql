@@ -4,11 +4,11 @@
 --
 -- NOTE: CONCURRENTLY not supported in migrations
 
+-- 3. Sort index for durability with tiebreaker that improves /storage endpoint
+CREATE INDEX IF NOT EXISTS idx_contract_data_contract_id_durability
+ON public.contract_data (contract_id, durability DESC, key_hash DESC);
 
--- 2. Sort index for closed_at with tiebreaker that improves /storage endpoint
-CREATE INDEX IF NOT EXISTS idx_contract_data_contract_id_closed_at
-ON public.contract_data (contract_id, closed_at DESC, key_hash DESC);
 
 -- +migrate Down
 
-DROP INDEX IF EXISTS idx_contract_data_contract_id_closed_at;
+DROP INDEX IF EXISTS idx_contract_data_contract_id_durability;
