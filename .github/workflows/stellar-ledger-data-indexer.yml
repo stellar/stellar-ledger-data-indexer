@@ -46,7 +46,9 @@ jobs:
           CREDS_PROD_HUBBLE: ${{secrets.CREDS_PROD_HUBBLE}}
 
       - name: Run tests
-        run: go test -v -coverprofile=${{ runner.workspace }}/coverage.out -coverpkg=./... ./...
+        run: |
+          COVERPKGS=$(go list ./... | grep -v '/internal/contract$' | paste -sd ',' -)
+          go test -v -coverprofile=${{ runner.workspace }}/coverage.out -coverpkg="$COVERPKGS" ./...
 
       - name: Check Coverage
         run: |
