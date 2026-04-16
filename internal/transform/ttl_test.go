@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/stellar/go/ingest"
-	"github.com/stellar/stellar-ledger-data-indexer/internal/contract"
 	"github.com/stellar/go/xdr"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/contract"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/stellar/stellar-ledger-data-indexer/internal/contract"
 	"github.com/stellar/go/support/db"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/contract"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
