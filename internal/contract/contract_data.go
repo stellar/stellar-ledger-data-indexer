@@ -6,10 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/processors/utils"
-	"github.com/stellar/go/strkey"
-	"github.com/stellar/go/xdr"
+	"github.com/stellar/go-stellar-sdk/ingest"
+	"github.com/stellar/go-stellar-sdk/strkey"
+	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
 // ContractDataOutput is a representation of contract data that aligns with the Bigquery table soroban_contract_data
@@ -71,7 +70,7 @@ func NewTransformContractDataStruct(assetFrom AssetFromContractDataFunc, contrac
 
 // TransformContractData converts a contract data ledger change entry into a form suitable for BigQuery
 func (t *TransformContractDataStruct) TransformContractData(ledgerChange ingest.Change, passphrase string, header xdr.LedgerHeaderHistoryEntry) (ContractDataOutput, error, bool) {
-	ledgerEntry, changeType, outputDeleted, err := utils.ExtractEntryFromChange(ledgerChange)
+	ledgerEntry, changeType, outputDeleted, err := ExtractEntryFromChange(ledgerChange)
 	if err != nil {
 		return ContractDataOutput{}, err, false
 	}
@@ -86,7 +85,7 @@ func (t *TransformContractDataStruct) TransformContractData(ledgerChange ingest.
 		return ContractDataOutput{}, nil, false
 	}
 
-	ledgerKeyHash := utils.LedgerEntryToLedgerKeyHash(ledgerEntry)
+	ledgerKeyHash := LedgerEntryToLedgerKeyHash(ledgerEntry)
 
 	var contractDataAssetType string
 	var contractDataAssetCode string
@@ -121,7 +120,7 @@ func (t *TransformContractDataStruct) TransformContractData(ledgerChange ingest.
 
 	contractDataDurability := contractData.Durability.String()
 
-	closedAt, err := utils.TimePointToUTCTimeStamp(header.Header.ScpValue.CloseTime)
+	closedAt, err := TimePointToUTCTimeStamp(header.Header.ScpValue.CloseTime)
 	if err != nil {
 		return ContractDataOutput{}, err, false
 	}

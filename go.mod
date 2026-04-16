@@ -1,6 +1,6 @@
 module github.com/stellar/stellar-ledger-data-indexer
 
-go 1.24.0
+go 1.25
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
@@ -13,7 +13,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.7
 	github.com/spf13/viper v1.20.1
-	github.com/stellar/go v0.0.0-20250912093157-b61bfeed7922
+	github.com/stellar/go-stellar-sdk v0.0.0-20260407210455-475bbd9ab9e2
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -59,7 +59,6 @@ require (
 	github.com/creachadair/jrpc2 v1.2.0 // indirect
 	github.com/creachadair/mds v0.13.4 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da // indirect
 	github.com/djherbis/fscache v0.10.1 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
@@ -77,7 +76,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
-	github.com/guregu/null v4.0.0+incompatible // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
@@ -101,8 +99,7 @@ require (
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
-	github.com/stellar/go-xdr v0.0.0-20231122183749-b53fb00bcac2 // indirect
-	github.com/stellar/stellar-rpc v0.9.6-0.20250130160539-be7702aa01ba // indirect
+	github.com/stellar/go-xdr v0.0.0-20260312225820-cc2b0611aabf // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect

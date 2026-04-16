@@ -10,7 +10,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	migrate "github.com/rubenv/sql-migrate"
-	"github.com/stellar/go/support/db"
+	"github.com/stellar/go-stellar-sdk/support/db"
 )
 
 //go:embed migrations/*.sql

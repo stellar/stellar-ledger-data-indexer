@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stellar/go/support/datastore"
-	"github.com/stellar/go/support/log"
+	"github.com/stellar/go-stellar-sdk/support/datastore"
+	"github.com/stellar/go-stellar-sdk/support/log"
 )
 
 type metricRecorder struct {

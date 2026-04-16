@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/processors/utils"
-	"github.com/stellar/go/xdr"
+	"github.com/stellar/go-stellar-sdk/ingest"
+	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
 // ContractCodeOutput is a representation of contract code that aligns with the Bigquery table soroban_contract_code
@@ -34,7 +33,7 @@ type ContractCodeOutput struct {
 
 // TransformContractCode converts a contract code ledger change entry into a form suitable for BigQuery
 func TransformContractCode(ledgerChange ingest.Change, header xdr.LedgerHeaderHistoryEntry) (ContractCodeOutput, error) {
-	ledgerEntry, changeType, outputDeleted, err := utils.ExtractEntryFromChange(ledgerChange)
+	ledgerEntry, changeType, outputDeleted, err := ExtractEntryFromChange(ledgerChange)
 	if err != nil {
 		return ContractCodeOutput{}, err
 	}
@@ -49,13 +48,13 @@ func TransformContractCode(ledgerChange ingest.Change, header xdr.LedgerHeaderHi
 		return ContractCodeOutput{}, nil
 	}
 
-	ledgerKeyHash := utils.LedgerEntryToLedgerKeyHash(ledgerEntry)
+	ledgerKeyHash := LedgerEntryToLedgerKeyHash(ledgerEntry)
 
 	contractCodeExtV := contractCode.Ext.V
 
 	contractCodeHash := contractCode.Hash.HexString()
 
-	closedAt, err := utils.TimePointToUTCTimeStamp(header.Header.ScpValue.CloseTime)
+	closedAt, err := TimePointToUTCTimeStamp(header.Header.ScpValue.CloseTime)
 	if err != nil {
 		return ContractCodeOutput{}, err
 	}

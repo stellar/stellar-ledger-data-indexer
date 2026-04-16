@@ -1,7 +1,7 @@
 package db
 
 import (
-	"github.com/stellar/go/support/db"
+	"github.com/stellar/go-stellar-sdk/support/db"
 )
 
 type DBSession struct {

@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/ingest/ledgerbackend"
-	"github.com/stellar/go/support/datastore"
-	"github.com/stellar/go/support/log"
-	"github.com/stellar/go/xdr"
+	"github.com/stellar/go-stellar-sdk/ingest"
+	"github.com/stellar/go-stellar-sdk/ingest/ledgerbackend"
+	"github.com/stellar/go-stellar-sdk/support/datastore"
+	"github.com/stellar/go-stellar-sdk/support/log"
+	"github.com/stellar/go-stellar-sdk/xdr"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 

@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/stellar/go/support/strutils"
+	"github.com/stellar/go-stellar-sdk/support/strutils"
 	internal "github.com/stellar/stellar-ledger-data-indexer/internal"
 )
 
