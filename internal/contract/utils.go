@@ -13,7 +13,9 @@ import (
 // ExtractEntryFromChange gets the most recent state of an entry from an ingestion change, as well as if the entry was deleted
 func ExtractEntryFromChange(change ingest.Change) (xdr.LedgerEntry, xdr.LedgerEntryChangeType, bool, error) {
 	switch changeType := change.ChangeType; changeType {
-	case xdr.LedgerEntryChangeTypeLedgerEntryCreated, xdr.LedgerEntryChangeTypeLedgerEntryUpdated:
+	case xdr.LedgerEntryChangeTypeLedgerEntryCreated,
+		xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
+		xdr.LedgerEntryChangeTypeLedgerEntryRestored:
 		return *change.Post, changeType, false, nil
 	case xdr.LedgerEntryChangeTypeLedgerEntryRemoved:
 		return *change.Pre, changeType, true, nil
