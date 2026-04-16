@@ -6,9 +6,9 @@ import (
 
 	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
-	"github.com/stellar/go/network"
-	"github.com/stellar/go/support/datastore"
-	"github.com/stellar/go/support/log"
+	"github.com/stellar/go-stellar-sdk/network"
+	"github.com/stellar/go-stellar-sdk/support/datastore"
+	"github.com/stellar/go-stellar-sdk/support/log"
 )
 
 const (

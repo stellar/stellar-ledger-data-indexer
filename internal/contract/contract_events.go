@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/processors/utils"
-	"github.com/stellar/go/strkey"
-	"github.com/stellar/go/toid"
-	"github.com/stellar/go/xdr"
+	"github.com/stellar/go-stellar-sdk/ingest"
+	"github.com/stellar/go-stellar-sdk/strkey"
+	"github.com/stellar/go-stellar-sdk/toid"
+	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
 // ContractEventOutput is a representation of soroban contract events and diagnostic events
@@ -35,14 +34,14 @@ type ContractEventOutput struct {
 // contract events for better clarity to data analytics users.
 func TransformContractEvent(transaction ingest.LedgerTransaction, lhe xdr.LedgerHeaderHistoryEntry) ([]ContractEventOutput, error) {
 	ledgerHeader := lhe.Header
-	outputTransactionHash := utils.HashToHexString(transaction.Result.TransactionHash)
+	outputTransactionHash := HashToHexString(transaction.Result.TransactionHash)
 	outputLedgerSequence := uint32(ledgerHeader.LedgerSeq)
 
 	transactionIndex := uint32(transaction.Index)
 
 	outputTransactionID := toid.New(int32(outputLedgerSequence), int32(transactionIndex), 0).ToInt64()
 
-	outputCloseTime, err := utils.TimePointToUTCTimeStamp(ledgerHeader.ScpValue.CloseTime)
+	outputCloseTime, err := TimePointToUTCTimeStamp(ledgerHeader.ScpValue.CloseTime)
 	if err != nil {
 		return []ContractEventOutput{}, fmt.Errorf("for ledger %d; transaction %d (transaction id=%d): %v", outputLedgerSequence, transactionIndex, outputTransactionID, err)
 	}

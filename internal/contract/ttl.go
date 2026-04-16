@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/processors/utils"
-	"github.com/stellar/go/xdr"
+	"github.com/stellar/go-stellar-sdk/ingest"
+	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
 // TtlOutput is a representation of soroban ttl that aligns with the Bigquery table ttls
@@ -22,7 +21,7 @@ type TtlOutput struct {
 
 // TransformTtl converts an ttl ledger change entry into a form suitable for BigQuery
 func TransformTtl(ledgerChange ingest.Change, header xdr.LedgerHeaderHistoryEntry) (TtlOutput, error) {
-	ledgerEntry, changeType, outputDeleted, err := utils.ExtractEntryFromChange(ledgerChange)
+	ledgerEntry, changeType, outputDeleted, err := ExtractEntryFromChange(ledgerChange)
 	if err != nil {
 		return TtlOutput{}, err
 	}
@@ -40,7 +39,7 @@ func TransformTtl(ledgerChange ingest.Change, header xdr.LedgerHeaderHistoryEntr
 	keyHash := ttl.KeyHash.HexString()
 	liveUntilLedgerSeq := ttl.LiveUntilLedgerSeq
 
-	closedAt, err := utils.TimePointToUTCTimeStamp(header.Header.ScpValue.CloseTime)
+	closedAt, err := TimePointToUTCTimeStamp(header.Header.ScpValue.CloseTime)
 	if err != nil {
 		return TtlOutput{}, err
 	}

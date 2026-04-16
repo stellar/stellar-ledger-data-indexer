@@ -3,8 +3,8 @@ package utils
 import (
 	"context"
 
-	"github.com/stellar/go/support/db"
-	"github.com/stellar/go/support/log"
+	"github.com/stellar/go-stellar-sdk/support/db"
+	"github.com/stellar/go-stellar-sdk/support/log"
 )
 
 type DBOperator interface {
