@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stellar/go/processors/contract"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/contract"
 )
 
 func TestRemoveDuplicatesByFields(t *testing.T) {

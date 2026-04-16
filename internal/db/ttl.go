@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/stellar/go/processors/contract"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/contract"
 	"github.com/stellar/go/support/db"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
