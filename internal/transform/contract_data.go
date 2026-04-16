@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/stellar/go/ingest"
-	"github.com/stellar/go/processors/contract"
 	"github.com/stellar/go/xdr"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/contract"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 )
 
