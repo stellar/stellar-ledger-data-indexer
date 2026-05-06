@@ -15,7 +15,7 @@ jobs:
     name: Build and push a sha tagged container image
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Add SHORT_SHA env property with commit short sha
         run: |
           SHORT_SHA=$(git rev-parse --short=9 HEAD)
