@@ -8,6 +8,7 @@ import (
 	"github.com/stellar/go-stellar-sdk/xdr"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/contract"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetContractDataDetails(t *testing.T) {
@@ -59,6 +60,41 @@ func TestGetContractDataDetails(t *testing.T) {
 		assert.Equal(t, test.wantErr, actualError)
 		assert.Equal(t, test.wantOutput, actualOutput)
 	}
+}
+
+// TestGetContractDataDetails_RemovalIsReportedAsDeleted checks the end of the
+// chain the reported defect sat in: a removal must reach the writer with
+// Deleted == true, carrying the entry's last live value, so the writer can
+// tombstone the row instead of refreshing it as though it were still live.
+func TestGetContractDataDetails_RemovalIsReportedAsDeleted(t *testing.T) {
+	changes := makeContractDataTestInput()
+	// stellar-core reports a removal with the entry in Pre and Post nil.
+	changes[0] = ingest.Change{
+		ChangeType: xdr.LedgerEntryChangeTypeLedgerEntryRemoved,
+		Type:       xdr.LedgerEntryTypeContractData,
+		Pre:        changes[0].Post,
+		Post:       nil,
+	}
+
+	header := xdr.LedgerHeaderHistoryEntry{
+		Header: xdr.LedgerHeader{
+			ScpValue:  xdr.StellarValue{CloseTime: 1000},
+			LedgerSeq: 10,
+		},
+	}
+
+	output, err := GetContractDataDetails(changes, header, "unit test")
+	require.NoError(t, err)
+	require.Len(t, output, 1, "a removal must not be silently dropped")
+
+	assert.True(t, output[0].Deleted,
+		"removals must be reported as deleted so the writer can tombstone the row")
+	assert.Equal(t, uint32(xdr.LedgerEntryChangeTypeLedgerEntryRemoved), output[0].LedgerEntryChange,
+		"the raw change type must reach the writer too, so ledger_entry_change can record it")
+	// Stamped with the ledger the removal happened in, and still carrying the
+	// pre-deletion value.
+	assert.Equal(t, uint32(10), output[0].LedgerSequence)
+	assert.Equal(t, "true", output[0].ValDecoded["value"])
 }
 
 func makeContractDataTestInput() []ingest.Change {
