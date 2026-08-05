@@ -27,4 +27,7 @@ type OutboundAdapter interface {
 type PostgresAdapter struct {
 	DBOperator DBOperator
 	Logger     *log.Entry
+	// MetricRecorder is optional; when nil, dropped rows are logged but not
+	// counted.
+	MetricRecorder MetricRecorder
 }

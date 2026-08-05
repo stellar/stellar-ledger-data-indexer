@@ -87,7 +87,7 @@ func getPostgresOutputAdapter(ctx context.Context, config Config, dataset string
 	default:
 		return nil, fmt.Errorf("unsupported dataset: %s", dataset)
 	}
-	postgresAdapter := &utils.PostgresAdapter{DBOperator: dbOperator, Logger: Logger}
+	postgresAdapter := &utils.PostgresAdapter{DBOperator: dbOperator, Logger: Logger, MetricRecorder: metricRecorder}
 	return postgresAdapter, nil
 }
 

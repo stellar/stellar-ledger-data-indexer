@@ -39,7 +39,7 @@ func DefineCommands() *cobra.Command {
 	rootCmd.PersistentFlags().String("config-file", "config.toml", "Path to the TOML config file. Defaults to 'config.toml' on runtime working directory path.")
 	rootCmd.PersistentFlags().Bool("backfill", false, "Enable backfill mode. When enabled, the exact start and end ledgers are respected without checking the database for existing data. Use this for historical data imports or re-indexing specific ranges.")
 	rootCmd.PersistentFlags().Int("metrics-port", 8080, "Port for Prometheus metrics.")
-	viper.BindPFlags(rootCmd.PersistentFlags())
+	_ = viper.BindPFlags(rootCmd.PersistentFlags())
 
 	return rootCmd
 }
@@ -47,24 +47,24 @@ func DefineCommands() *cobra.Command {
 func bindCliParameters(startFlag *pflag.Flag, endFlag *pflag.Flag, configFileFlag *pflag.Flag, backfillFlag *pflag.Flag, metricsPortFlag *pflag.Flag) internal.RuntimeSettings {
 	settings := internal.RuntimeSettings{}
 
-	viper.BindPFlag(startFlag.Name, startFlag)
-	viper.BindEnv(startFlag.Name, strutils.KebabToConstantCase(startFlag.Name))
+	_ = viper.BindPFlag(startFlag.Name, startFlag)
+	_ = viper.BindEnv(startFlag.Name, strutils.KebabToConstantCase(startFlag.Name))
 	settings.StartLedger = viper.GetUint32(startFlag.Name)
 
-	viper.BindPFlag(endFlag.Name, endFlag)
-	viper.BindEnv(endFlag.Name, strutils.KebabToConstantCase(endFlag.Name))
+	_ = viper.BindPFlag(endFlag.Name, endFlag)
+	_ = viper.BindEnv(endFlag.Name, strutils.KebabToConstantCase(endFlag.Name))
 	settings.EndLedger = viper.GetUint32(endFlag.Name)
 
-	viper.BindPFlag(configFileFlag.Name, configFileFlag)
-	viper.BindEnv(configFileFlag.Name, strutils.KebabToConstantCase(configFileFlag.Name))
+	_ = viper.BindPFlag(configFileFlag.Name, configFileFlag)
+	_ = viper.BindEnv(configFileFlag.Name, strutils.KebabToConstantCase(configFileFlag.Name))
 	settings.ConfigFilePath = viper.GetString(configFileFlag.Name)
 
-	viper.BindPFlag(backfillFlag.Name, backfillFlag)
-	viper.BindEnv(backfillFlag.Name, strutils.KebabToConstantCase(backfillFlag.Name))
+	_ = viper.BindPFlag(backfillFlag.Name, backfillFlag)
+	_ = viper.BindEnv(backfillFlag.Name, strutils.KebabToConstantCase(backfillFlag.Name))
 	settings.Backfill = viper.GetBool(backfillFlag.Name)
 
-	viper.BindPFlag(metricsPortFlag.Name, metricsPortFlag)
-	viper.BindEnv(metricsPortFlag.Name, strutils.KebabToConstantCase(metricsPortFlag.Name))
+	_ = viper.BindPFlag(metricsPortFlag.Name, metricsPortFlag)
+	_ = viper.BindEnv(metricsPortFlag.Name, strutils.KebabToConstantCase(metricsPortFlag.Name))
 	settings.MetricsPort = viper.GetInt(metricsPortFlag.Name)
 
 	return settings
