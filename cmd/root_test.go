@@ -100,6 +100,19 @@ func (s *LedgerDataIndexerTestSuite) TestIndex() {
 	require.NoError(sess.SelectRaw(context.Background(), &actualCount, `SELECT count(*) FROM contract_data;`))
 	require.Equal(expectedCount, actualCount)
 
+	// The change-metadata columns must stay nullable. Rows written before the
+	// migration cannot be classified from this table alone, so NULL is the honest
+	// value for them. Adding NOT NULL DEFAULT false here would assert "this entry
+	// still exists" about rows nobody ever checked, and the read side would then
+	// pass every pre-migration removal through as live. See the migration comment.
+	var nullability []string
+	require.NoError(sess.SelectRaw(context.Background(), &nullability, `
+		SELECT is_nullable FROM information_schema.columns
+		WHERE table_name = 'contract_data' AND column_name IN ('deleted', 'ledger_entry_change')
+		ORDER BY column_name;`))
+	require.Equal([]string{"YES", "YES"}, nullability,
+		"deleted and ledger_entry_change must remain nullable so legacy rows stay distinguishable")
+
 	var actualHistoricalRecords []ContractRow
 	expectedHistoricalRecords := []ContractRow{
 		{

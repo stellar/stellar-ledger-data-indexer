@@ -19,6 +19,32 @@
 --
 -- When deleted is true, ledger_sequence is the ledger the entry was removed in.
 --
+-- Both columns are nullable with no default, and that is load-bearing rather
+-- than incidental. Rows written before this migration cannot be classified:
+-- removals were recorded as ordinary live-looking rows, and the information
+-- needed to tell them apart exists only in archived ledger metadata, not in this
+-- table. The indexer resumes from MAX(ledger_sequence) and only ever moves
+-- forward, so it will not revisit them. Defaulting them to false would assert
+-- "this entry still exists" about rows we never actually checked, and the read
+-- side would then filter them "correctly" while silently passing every
+-- pre-migration removal through as live.
+--
+-- So there are three states, and consumers need to handle all three:
+--
+--   NULL   unknown -- written before this migration, never reclassified
+--   false  known live
+--   true   known removed (tombstone)
+--
+-- IMPORTANT for readers: filter with `deleted IS NOT TRUE`, not `NOT deleted`.
+-- NOT NULL evaluates to NULL, so `WHERE NOT deleted` would silently drop every
+-- legacy row from the result instead of including it.
+--
+-- The NULL population is the backlog: SELECT count(*) ... WHERE deleted IS NULL
+-- measures how much of the table a historical reingestion still has to correct,
+-- and shrinks to zero as it completes. Clearing it requires a re-index, which
+-- has to wait for the key_symbol sanitization fix so a backfill cannot die
+-- mid-range.
+--
 -- 2. ledger_entry_change -- which kind of change last wrote this row.
 --
 -- The raw xdr.LedgerEntryChangeType enum value, matching the INTEGER typing used
@@ -37,10 +63,10 @@
 -- detail that additionally separates created from updated from restored among the
 -- live rows -- a distinction deleted cannot express.
 --
--- Adding columns with constant DEFAULTs is a metadata-only change on
--- PostgreSQL 11+, so this does not rewrite the table.
+-- Adding nullable columns with no default is a metadata-only change, so this
+-- does not rewrite the table.
 ALTER TABLE contract_data
-ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS deleted BOOLEAN,
 ADD COLUMN IF NOT EXISTS ledger_entry_change INTEGER;
 
 
