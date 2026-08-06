@@ -37,9 +37,32 @@ func TestIsPermanentWriteErr(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "check_violation is permanent",
-			err:  &pq.Error{Code: "23514"},
+			name: "string_data_right_truncation is permanent",
+			err:  &pq.Error{Code: "22001"},
 			want: true,
+		},
+		// Constraint and schema failures are deliberately NOT permanent. They fail
+		// every row identically, so classifying them as droppable would let the
+		// row-by-row salvage erase a whole batch and report success.
+		{
+			name: "datatype_mismatch is not droppable (schema disagreement)",
+			err:  &pq.Error{Code: "42804"},
+			want: false,
+		},
+		{
+			name: "not_null_violation is not droppable (code defect)",
+			err:  &pq.Error{Code: "23502"},
+			want: false,
+		},
+		{
+			name: "unique_violation is not droppable (upsert resolves the PK)",
+			err:  &pq.Error{Code: "23505"},
+			want: false,
+		},
+		{
+			name: "check_violation is not droppable (migration defect)",
+			err:  &pq.Error{Code: "23514"},
+			want: false,
 		},
 		{
 			name: "serialization_failure is retryable",

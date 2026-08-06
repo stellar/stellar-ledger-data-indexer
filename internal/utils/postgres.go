@@ -14,18 +14,27 @@ const (
 	baseBackoff = 5000 * time.Millisecond
 )
 
-// permanentPQCodes are PostgreSQL error codes attributable to the *value* in a
-// single row rather than to the connection or the schema. Retrying them is
-// pointless -- the same row fails the same way every time -- so a row that
-// trips one of these is dropped rather than allowed to halt ingestion.
+// permanentPQCodes are PostgreSQL error codes meaning "this particular value
+// cannot be represented in this column". Retrying them is pointless -- the same
+// row fails the same way every time -- so a row that trips one of these is
+// dropped rather than allowed to halt ingestion.
 //
-// Membership is deliberately narrow. A code that indicates a *statement or
-// schema* problem must never appear here: it would fail every row identically,
-// so the row-by-row salvage below would drop the entire batch and report
-// success, silently erasing data for as long as the mismatch lasted. That is
-// strictly worse than crashing, because nothing surfaces it. datatype_mismatch
-// (42804) is the obvious example and is intentionally absent -- a deployment
-// whose expectations disagree with the live schema must fail loudly.
+// Membership is deliberately limited to class 22 (data exception), and that
+// restraint is the whole safety argument. A code that can indicate a *statement,
+// schema or constraint* problem must never appear here: such a code fails every
+// row identically, so the row-by-row salvage below would drop the entire batch
+// and report success, silently erasing data for as long as the defect lasted.
+// That is strictly worse than crashing, because nothing surfaces it.
+//
+// Excluded for that reason, even though each is technically unretryable:
+//
+//   - 42804 datatype_mismatch -- a deployment disagreeing with the live schema.
+//   - 23502 not_null_violation, 23505 unique_violation, 23514 check_violation --
+//     constraint failures. None can currently fire against a per-row value:
+//     contract_data's only constraint is PRIMARY KEY (key_hash), which the
+//     upsert resolves via ON CONFLICT, and every NOT NULL column is fed from a
+//     non-nullable Go field. So if one of these ever does fire it is a code or
+//     migration defect affecting the whole batch, and it must fail loudly.
 //
 // Codes are from https://www.postgresql.org/docs/16/errcodes-appendix.html.
 var permanentPQCodes = map[pq.ErrorCode]struct{}{
@@ -35,9 +44,6 @@ var permanentPQCodes = map[pq.ErrorCode]struct{}{
 	"22003": {}, // numeric_value_out_of_range
 	"22007": {}, // invalid_datetime_format
 	"22008": {}, // datetime_field_overflow
-	"23502": {}, // not_null_violation
-	"23505": {}, // unique_violation
-	"23514": {}, // check_violation
 }
 
 // isPermanentWriteErr reports whether err is a data-shaped failure that cannot
@@ -126,12 +132,16 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 			}
 
 			backoff := time.Duration(attempt+1) * p.retryBackoff()
+			// Log lastErr, not err: when salvage fell through above, lastErr is the
+			// transient failure we are actually retrying, while err is the permanent
+			// batch error that triggered salvage. Logging err there would report a
+			// permanent error as retryable and send an on-call down the wrong path.
 			p.Logger.Warn(
 				"retryable db error, retrying",
 				"table", p.DBOperator.TableName(),
 				"attempt", attempt+1,
 				"backoff", backoff,
-				"err", err,
+				"err", lastErr,
 			)
 			// Sleep interruptibly so a shutdown signal is not stuck behind the
 			// remainder of the backoff ladder.
