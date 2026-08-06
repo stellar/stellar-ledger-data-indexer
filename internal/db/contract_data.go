@@ -13,6 +13,7 @@ import (
 type ContractDataDBOperator interface {
 	Upsert(ctx context.Context, data any) error
 	TableName() string
+	DatasetName() string
 	Session() db.SessionInterface
 	GetMaxLedgerSequence(ctx context.Context) (uint32, error)
 }
@@ -139,6 +140,12 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 
 func (i *contractDataDBOperator) TableName() string {
 	return i.table
+}
+
+// DatasetName is the logical dataset, which differs from TableName for the TTL
+// operator: it enriches rows in table contract_data but is its own dataset.
+func (i *contractDataDBOperator) DatasetName() string {
+	return i.dataset
 }
 
 func (i *contractDataDBOperator) Session() db.SessionInterface {
