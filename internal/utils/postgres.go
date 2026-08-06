@@ -14,10 +14,18 @@ const (
 	baseBackoff = 5000 * time.Millisecond
 )
 
-// permanentPQCodes are PostgreSQL error codes that describe the data we are
-// trying to write rather than the state of the connection. Retrying them is
-// pointless: the same rows will fail the same way every time, however long we
-// wait.
+// permanentPQCodes are PostgreSQL error codes attributable to the *value* in a
+// single row rather than to the connection or the schema. Retrying them is
+// pointless -- the same row fails the same way every time -- so a row that
+// trips one of these is dropped rather than allowed to halt ingestion.
+//
+// Membership is deliberately narrow. A code that indicates a *statement or
+// schema* problem must never appear here: it would fail every row identically,
+// so the row-by-row salvage below would drop the entire batch and report
+// success, silently erasing data for as long as the mismatch lasted. That is
+// strictly worse than crashing, because nothing surfaces it. datatype_mismatch
+// (42804) is the obvious example and is intentionally absent -- a deployment
+// whose expectations disagree with the live schema must fail loudly.
 //
 // Codes are from https://www.postgresql.org/docs/16/errcodes-appendix.html.
 var permanentPQCodes = map[pq.ErrorCode]struct{}{
@@ -28,10 +36,8 @@ var permanentPQCodes = map[pq.ErrorCode]struct{}{
 	"22007": {}, // invalid_datetime_format
 	"22008": {}, // datetime_field_overflow
 	"23502": {}, // not_null_violation
-	"23503": {}, // foreign_key_violation
 	"23505": {}, // unique_violation
 	"23514": {}, // check_violation
-	"42804": {}, // datatype_mismatch
 }
 
 // isPermanentWriteErr reports whether err is a data-shaped failure that cannot
@@ -54,6 +60,15 @@ func isPermanentWriteErr(err error) bool {
 	}
 	_, permanent := permanentPQCodes[pqErr.Code]
 	return permanent
+}
+
+// retryBackoff is the base unit of the backoff ladder. It is indirected through
+// a method so tests can shrink it; production leaves BaseBackoff unset.
+func (p *PostgresAdapter) retryBackoff() time.Duration {
+	if p.BaseBackoff > 0 {
+		return p.BaseBackoff
+	}
+	return baseBackoff
 }
 
 func chunkRecords[T any](records []T, chunkSize int) [][]T {
@@ -95,20 +110,22 @@ func (p *PostgresAdapter) Write(ctx context.Context, msg Message) error {
 			// what we can instead of sleeping and then killing the process.
 			if isPermanentWriteErr(err) {
 				dropped, rowErr := p.upsertRowsIndividually(ctx, batch)
-				if rowErr != nil {
-					return fmt.Errorf(
-						"error adding batch to %s: %w", p.DBOperator.TableName(), rowErr,
+				if rowErr == nil {
+					p.Logger.Warnf(
+						"dataset %s (table %s): recovered a permanently failing batch of %d by writing rows individually, %d dropped",
+						p.DBOperator.DatasetName(), p.DBOperator.TableName(), len(batch), dropped,
 					)
+					lastErr = nil
+					break
 				}
-				p.Logger.Warnf(
-					"table %s: recovered a permanently failing batch of %d by writing rows individually, %d dropped",
-					p.DBOperator.TableName(), len(batch), dropped,
-				)
-				lastErr = nil
-				break
+				// Salvage itself hit a transient failure. Fall through to the normal
+				// backoff rather than aborting ingestion: the retry contract is that
+				// transient errors get retried, and re-running the batch is safe
+				// because the upsert is idempotent.
+				lastErr = rowErr
 			}
 
-			backoff := time.Duration(attempt+1) * baseBackoff
+			backoff := time.Duration(attempt+1) * p.retryBackoff()
 			p.Logger.Warn(
 				"retryable db error, retrying",
 				"table", p.DBOperator.TableName(),
@@ -178,11 +195,14 @@ func (p *PostgresAdapter) upsertRowsIndividually(ctx context.Context, batch []in
 		}
 		dropped++
 		p.Logger.Errorf(
-			"table %s: dropping a row that PostgreSQL cannot store, it will be missing from the index: %v",
-			p.DBOperator.TableName(), err,
+			"dataset %s (table %s): dropping a row that PostgreSQL cannot store, it will be missing from the index: %v",
+			p.DBOperator.DatasetName(), p.DBOperator.TableName(), err,
 		)
 		if p.MetricRecorder != nil {
-			p.MetricRecorder.RecordSkippedRow(p.DBOperator.TableName(), skipReason(err))
+			// Label by dataset, not table: the TTL operator writes to table
+			// contract_data (internal/db/ttl.go), so a table label would make
+			// skipped TTL updates indistinguishable from skipped contract-data rows.
+			p.MetricRecorder.RecordSkippedRow(p.DBOperator.DatasetName(), skipReason(err))
 		}
 	}
 	return dropped, nil
