@@ -47,14 +47,28 @@ func ExtractSymbol(keyDecoded map[string]string) string {
 	return symbol
 }
 
-func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
-	rawRecords := data.([]interface{})
-	var contractId, ledgerSequence, ledgerKeyHash, contractDurability, keySymbol, closedAt, key, val []interface{}
+// contractDataUpsertFields flattens a batch of ContractDataOutput into the
+// column-major form UpsertRows expects.
+//
+// Note that removals are written, not skipped. A removal carries the entry's
+// pre-deletion state (see contract.ExtractEntryFromChange) together with
+// Deleted == true, and persisting it as a tombstone is what lets a reader tell
+// that the entry is gone. Dropping removals here instead would leave the last
+// live value in the table looking current forever.
+//
+// deleted and ledger_entry_change are both bound even though deleted is exactly
+// (ledger_entry_change == 2). deleted is the stable semantic flag readers filter
+// on; ledger_entry_change is the raw xdr.LedgerEntryChangeType, which also
+// separates created (0) from updated (1) from restored (4) among the live rows.
+// STATE (3) never appears: the SDK folds those into the Pre image of the change
+// they accompany rather than surfacing them.
+func contractDataUpsertFields(rawRecords []interface{}) ([]UpsertField, error) {
+	var contractId, ledgerSequence, ledgerKeyHash, contractDurability, keySymbol, closedAt, key, val, deleted, ledgerEntryChange []interface{}
 
 	for _, rawRecord := range rawRecords {
 		contractData, ok := rawRecord.(contract.ContractDataOutput)
 		if !ok {
-			return fmt.Errorf("InsertArgs: invalid type passed, expected ContractDataOutput")
+			return nil, fmt.Errorf("InsertArgs: invalid type passed, expected ContractDataOutput")
 		}
 		keyBytes := []byte(contractData.Key["value"])
 		valBytes := []byte(contractData.Val["value"])
@@ -74,9 +88,11 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		closedAt = append(closedAt, contractData.ClosedAt)
 		key = append(key, keyBytes)
 		val = append(val, valBytes)
+		deleted = append(deleted, contractData.Deleted)
+		ledgerEntryChange = append(ledgerEntryChange, contractData.LedgerEntryChange)
 	}
 
-	upsertFields := []UpsertField{
+	return []UpsertField{
 		{"contract_id", "text", contractId},
 		{"ledger_sequence", "int", ledgerSequence},
 		{"key_hash", "text", ledgerKeyHash},
@@ -85,7 +101,23 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		{"key", "bytea", key},
 		{"val", "bytea", val},
 		{"closed_at", "timestamp", closedAt},
+		{"deleted", "boolean", deleted},
+		{"ledger_entry_change", "int", ledgerEntryChange},
+	}, nil
+}
+
+func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
+	rawRecords := data.([]interface{})
+
+	upsertFields, err := contractDataUpsertFields(rawRecords)
+	if err != nil {
+		return err
 	}
+
+	// A removal always arrives in a later ledger than the entry it removes, so
+	// this condition passes and the tombstone is applied. It also means a later
+	// LedgerEntryRestored change clears the tombstone, since ON CONFLICT assigns
+	// deleted = excluded.deleted.
 	upsertConditions := []UpsertCondition{
 		{"ledger_sequence", OpGT},
 	}
