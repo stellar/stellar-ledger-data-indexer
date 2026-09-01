@@ -39,14 +39,28 @@ jobs:
         with:
           go-version: "1.25"
 
-      - name: Create GCP Credentials File
+      - name: Download test ledger data
         run: |
-          echo "$CREDS_PROD_HUBBLE" > "$RUNNER_WORKSPACE/gcp-key.json"
-          chmod 600 "$RUNNER_WORKSPACE/gcp-key.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_WORKSPACE/gcp-key.json" >> $GITHUB_ENV
+          BASE_URL="https://storage.googleapis.com/sdf-ledger-close-meta/v1/ledgers/pubnet"
+          BASE_DIR="/tmp/ledger-test-data"
+          PARTITION="FC73CBFF--59520000-59583999"
+
+          mkdir -p "$BASE_DIR/$PARTITION"
+
+          for FILE in \
+            "FC7327F5--59561994" \
+            "FC7327F4--59561995" \
+            "FC7327F3--59561996" \
+            "FC7327F2--59561997" \
+            "FC7327F1--59561998" \
+            "FC7327F0--59561999" \
+            "FC7327EF--59562000"
+          do
+            curl -L --fail --show-error --silent \
+              -o "$BASE_DIR/$PARTITION/$FILE.xdr.zstd" \
+              "$BASE_URL/$PARTITION/$FILE.xdr.zstd"
+          done
         shell: bash
-        env:
-          CREDS_PROD_HUBBLE: ${{secrets.CREDS_PROD_HUBBLE}}
 
       - name: Run tests
         run: |
