@@ -28,7 +28,7 @@ func TestLedgerDataIndexerTestSuite(t *testing.T) {
 
 func (s *LedgerDataIndexerTestSuite) SetupSuite() {
 	s.db = dbtest.Postgres(s.T())
-	os.Setenv("POSTGRES_CONN_STRING", s.db.DSN)
+	s.Require().NoError(os.Setenv("POSTGRES_CONN_STRING", s.db.DSN))
 }
 
 func (s *LedgerDataIndexerTestSuite) TearDownSuite() {
@@ -53,7 +53,7 @@ func (s *LedgerDataIndexerTestSuite) TestIndex() {
 	s.T().Log(errOutput)
 
 	sess := &db.Session{DB: s.db.Open()}
-	defer sess.DB.Close()
+	defer func() { _ = sess.DB.Close() }()
 
 	type ContractRow struct {
 		ContractID              string `db:"contract_id"`

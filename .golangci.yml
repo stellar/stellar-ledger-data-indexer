@@ -1,12 +1,11 @@
 version: "2"
 linters:
   default: none
-  disable:
-    - errcheck
-    - ineffassign
-    - staticcheck
 
   enable:
+    - errcheck # Reports unchecked errors.
+    - ineffassign # Detects assignments to existing variables that are never used.
+    - staticcheck # Static analysis: bugs, dead code, simplifications.
     - importas # Enforces consistent import aliases.
     - misspell # Finds commonly misspelled English words.
 
@@ -14,3 +13,11 @@ formatters:
   enable:
     - gofmt
     - goimports
+
+issues:
+  # Report every occurrence instead of the first few. The defaults
+  # (max-issues-per-linter: 50, max-same-issues: 3) silently hide repeats, which
+  # understates how much a newly enabled linter has found and lets a real
+  # regression hide behind an identical finding in another file.
+  max-issues-per-linter: 0
+  max-same-issues: 0

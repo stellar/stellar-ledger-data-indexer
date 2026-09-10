@@ -11,6 +11,7 @@ import (
 
 type metricRecorder struct {
 	UpsertCountMetric                *prometheus.CounterVec
+	SkippedRowCountMetric            *prometheus.CounterVec
 	MaxLedgerSequenceIndexedMetric   *prometheus.GaugeVec
 	ProcessingLedgerSequenceMetric   *prometheus.GaugeVec
 	MaxLedgerSequenceInGalexieMetric *prometheus.GaugeVec
@@ -22,6 +23,7 @@ type metricRecorder struct {
 
 type MetricRecorder interface {
 	RecordUpsertCount(dataset string, count int64)
+	RecordSkippedRow(dataset string, reason string)
 	RecordProcessingLedgerSequence(dataset string, sequence uint32)
 	RecordLedgerRangeStart(inputStartLedger uint32, inputEndLedger uint32, inputBackfill bool, maxLedgerInGalexie uint32, maxLedgerInIndexer uint32, actualStartLedger uint32)
 	RecordLedgerRangeEnd(inputStartLedger uint32, inputEndLedger uint32, inputBackfill bool, maxLedgerInGalexie uint32, maxLedgerInIndexer uint32, actualEndLedger uint32)
@@ -37,6 +39,16 @@ func GetNewMetricRecorder(ctx context.Context, logger *log.Entry, registry *prom
 			Help:      "Number of rows upserted into the table",
 		},
 			[]string{"dataset"},
+		)
+
+		// A non-zero value here means the index is knowingly missing rows.
+		// Worth alerting on: it should normally stay flat at zero forever.
+		skippedRowCountMetric = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: nameSpace,
+			Name:      "skipped_row_count",
+			Help:      "Number of rows dropped because PostgreSQL could not store them, labelled by SQLSTATE",
+		},
+			[]string{"dataset", "reason"},
 		)
 
 		processingLedgerSequenceMetric = prometheus.NewGaugeVec(
@@ -65,11 +77,12 @@ func GetNewMetricRecorder(ctx context.Context, logger *log.Entry, registry *prom
 		)
 	)
 
-	registry.MustRegister(upsertCountMetric, processingLedgerSequenceMetric, ledgerRangeStartMetric, ledgerRangeEndMetric)
+	registry.MustRegister(upsertCountMetric, skippedRowCountMetric, processingLedgerSequenceMetric, ledgerRangeStartMetric, ledgerRangeEndMetric)
 
 	logger.Info("Prometheus metrics initialized")
 	return &metricRecorder{
 		UpsertCountMetric:              upsertCountMetric,
+		SkippedRowCountMetric:          skippedRowCountMetric,
 		ProcessingLedgerSequenceMetric: processingLedgerSequenceMetric,
 		LedgerRangeStartMetric:         ledgerRangeStartMetric,
 		LedgerRangeEndMetric:           ledgerRangeEndMetric,
@@ -80,6 +93,10 @@ func GetNewMetricRecorder(ctx context.Context, logger *log.Entry, registry *prom
 
 func (metricRecorder *metricRecorder) RecordUpsertCount(dataset string, count int64) {
 	metricRecorder.UpsertCountMetric.With(prometheus.Labels{"dataset": dataset}).Add(float64(count))
+}
+
+func (metricRecorder *metricRecorder) RecordSkippedRow(dataset string, reason string) {
+	metricRecorder.SkippedRowCountMetric.With(prometheus.Labels{"dataset": dataset, "reason": reason}).Inc()
 }
 
 func (metricRecorder *metricRecorder) RecordProcessingLedgerSequence(dataset string, sequence uint32) {

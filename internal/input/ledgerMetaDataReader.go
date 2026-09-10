@@ -67,7 +67,7 @@ func GetLedgerBound(startLedger uint32, endLedger uint32, latestNetworkLedger ui
 		return ledgerbackend.Range{}, false
 	}
 
-	if endLedger <= maxLedgerInDB && endLedger > UnboundedSentinel && backfill == false {
+	if endLedger <= maxLedgerInDB && endLedger > UnboundedSentinel && !backfill {
 		logger.Infof("End ledger %d is less than or equal to max ledger in DB %d, nothing to process", endLedger, maxLedgerInDB)
 		return ledgerbackend.Range{}, false
 	}
