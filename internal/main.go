@@ -115,9 +115,9 @@ func IndexData(config Config) {
 		}
 	}()
 
-	dataStore, err := datastore.NewGCSDataStore(ctx, config.DataStoreConfig)
+	dataStore, err := datastore.NewDataStore(ctx, config.DataStoreConfig)
 	if err != nil {
-		Logger.Fatal("failed to create GCS data store:", err)
+		Logger.Fatal("failed to create data store:", err)
 		return
 	}
 	metricRecorder := utils.GetNewMetricRecorder(ctx, Logger, registry, nameSpace)
