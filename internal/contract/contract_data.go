@@ -32,6 +32,9 @@ type ContractDataOutput struct {
 	Val                       map[string]string `json:"val"`
 	ValDecoded                map[string]string `json:"val_decoded"`
 	ContractDataXDR           string            `json:"contract_data_xdr"`
+	// LiveUntilLedgerSeq is set when the same ledger also changed the entry's TTL,
+	// so the upsert can write the data and the TTL as one row version.
+	LiveUntilLedgerSeq *uint32 `json:"live_until_ledger_seq,omitempty"`
 }
 
 var (

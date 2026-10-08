@@ -1,6 +1,8 @@
 package transform
 
 import (
+	"encoding/hex"
+	"strings"
 	"testing"
 	"time"
 
@@ -8,6 +10,7 @@ import (
 	"github.com/stellar/go-stellar-sdk/xdr"
 	"github.com/stellar/stellar-ledger-data-indexer/internal/contract"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetContractDataDetails(t *testing.T) {
@@ -59,6 +62,87 @@ func TestGetContractDataDetails(t *testing.T) {
 		assert.Equal(t, test.wantErr, actualError)
 		assert.Equal(t, test.wantOutput, actualOutput)
 	}
+}
+
+func TestGetContractDataDetailsCarriesSameLedgerTTL(t *testing.T) {
+	header := xdr.LedgerHeaderHistoryEntry{
+		Header: xdr.LedgerHeader{
+			ScpValue:  xdr.StellarValue{CloseTime: 1000},
+			LedgerSeq: 10,
+		},
+	}
+	ttlEntry := func(keyHashHex string, liveUntil uint32) *xdr.LedgerEntry {
+		raw, err := hex.DecodeString(keyHashHex)
+		require.NoError(t, err)
+		var keyHash xdr.Hash
+		copy(keyHash[:], raw)
+		return &xdr.LedgerEntry{
+			Data: xdr.LedgerEntryData{
+				Type: xdr.LedgerEntryTypeTtl,
+				Ttl:  &xdr.TtlEntry{KeyHash: keyHash, LiveUntilLedgerSeq: xdr.Uint32(liveUntil)},
+			},
+		}
+	}
+	ttlChange := func(keyHashHex string, liveUntil uint32) ingest.Change {
+		return ingest.Change{
+			ChangeType: xdr.LedgerEntryChangeTypeLedgerEntryUpdated,
+			Type:       xdr.LedgerEntryTypeTtl,
+			Pre:        &xdr.LedgerEntry{},
+			Post:       ttlEntry(keyHashHex, liveUntil),
+		}
+	}
+	ttlRemoved := func(keyHashHex string, liveUntil uint32) ingest.Change {
+		return ingest.Change{
+			ChangeType: xdr.LedgerEntryChangeTypeLedgerEntryRemoved,
+			Type:       xdr.LedgerEntryTypeTtl,
+			Pre:        ttlEntry(keyHashHex, liveUntil),
+		}
+	}
+	entryKeyHash := makeContractDataTestOutput()[0].LedgerKeyHash
+	otherKeyHash := strings.Repeat("ff", 32)
+
+	t.Run("last TTL change of the same key in the ledger", func(t *testing.T) {
+		changes := append(makeContractDataTestInput(),
+			ttlChange(entryKeyHash, 100),
+			ttlChange(otherKeyHash, 999),
+			ttlChange(entryKeyHash, 300),
+		)
+		out, err := GetContractDataDetails(changes, header, "unit test")
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		require.NotNil(t, out[0].LiveUntilLedgerSeq)
+		assert.Equal(t, uint32(300), *out[0].LiveUntilLedgerSeq)
+	})
+
+	t.Run("key deleted and recreated with a shorter TTL in the ledger", func(t *testing.T) {
+		changes := append(makeContractDataTestInput(),
+			ttlChange(entryKeyHash, 10000),
+			ttlRemoved(entryKeyHash, 10000),
+			ttlChange(entryKeyHash, 6000),
+		)
+		out, err := GetContractDataDetails(changes, header, "unit test")
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		require.NotNil(t, out[0].LiveUntilLedgerSeq)
+		assert.Equal(t, uint32(6000), *out[0].LiveUntilLedgerSeq)
+	})
+
+	t.Run("key only deleted in the ledger keeps its last TTL, as the ttl dataset does", func(t *testing.T) {
+		changes := append(makeContractDataTestInput(), ttlRemoved(entryKeyHash, 10000))
+		out, err := GetContractDataDetails(changes, header, "unit test")
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		require.NotNil(t, out[0].LiveUntilLedgerSeq)
+		assert.Equal(t, uint32(10000), *out[0].LiveUntilLedgerSeq)
+	})
+
+	t.Run("no TTL change for the key", func(t *testing.T) {
+		changes := append(makeContractDataTestInput(), ttlChange(otherKeyHash, 999))
+		out, err := GetContractDataDetails(changes, header, "unit test")
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		assert.Nil(t, out[0].LiveUntilLedgerSeq)
+	})
 }
 
 func makeContractDataTestInput() []ingest.Change {

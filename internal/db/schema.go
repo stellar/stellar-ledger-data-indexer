@@ -16,6 +16,13 @@ type UpsertField struct {
 	objects []interface{}
 }
 
+// UpsertSetExpr replaces the default "column = excluded.column" assignment of
+// one column in the ON CONFLICT DO UPDATE clause built by UpsertRows.
+type UpsertSetExpr struct {
+	column string
+	expr   string
+}
+
 type Operator string
 
 type UpsertCondition struct {
