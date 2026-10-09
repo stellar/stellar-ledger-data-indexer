@@ -45,6 +45,12 @@
 -- has to wait for the key_symbol sanitization fix so a backfill cannot die
 -- mid-range.
 --
+-- A phantom row already carries the removal ledger's sequence, because the
+-- pre-fix removal was written as an ordinary upsert and bumped it. The
+-- ON CONFLICT guard therefore admits an equal ledger_sequence, so a replay of
+-- that ledger can land the tombstone instead of being skipped. See
+-- contractDataUpsertConditions in ../contract_data.go.
+--
 -- 2. ledger_entry_change -- which kind of change last wrote this row.
 --
 -- The raw xdr.LedgerEntryChangeType enum value, matching the INTEGER typing used
