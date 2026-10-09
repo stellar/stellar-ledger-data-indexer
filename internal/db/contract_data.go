@@ -150,6 +150,41 @@ func contractDataUpsertFields(rawRecords []interface{}) ([]UpsertField, error) {
 	}, nil
 }
 
+// contractDataUpsertConditions is the ON CONFLICT guard deciding whether an
+// incoming row may overwrite the one already stored under the same key_hash.
+// UpsertRows renders it as
+//
+//	WHERE excluded.ledger_sequence >= contract_data.ledger_sequence
+//
+// A removal arrives in a later ledger than the entry it removes, so the guard
+// passes and the tombstone is applied; a later LedgerEntryRestored clears it
+// again, since ON CONFLICT assigns deleted = excluded.deleted.
+//
+// Greater-or-equal rather than strictly greater, because a pre-fix removal was
+// written as an ordinary upsert and so bumped ledger_sequence to the removal
+// ledger. A legacy phantom row already carries the exact ledger a re-index has
+// to replay to correct it:
+//
+//	ledger 2000  created                 -> row at ledger_sequence = 2000
+//	ledger 2100  removed on-chain        -> row at ledger_sequence = 2100, deleted NULL
+//	replay 2100  removal, deleted = true -> 2100 > 2100 is false, write skipped
+//
+// Under strictly greater the row that most needs the tombstone is the one the
+// guard rejects, so a re-index would run to completion and change nothing.
+//
+// Admitting the equal case is safe. An older ledger still loses, so neither a
+// backfill nor a restart can walk newer state backwards. A same-ledger replay
+// rebuilds the row from the same immutable archived metadata, so every column
+// is written back identically apart from the ones being corrected. And the
+// transform deduplicates to the final change per key per ledger
+// (utils.RemoveDuplicatesByFields), with one Write per ledger, so a single
+// batch never holds two rows for the same key_hash for this to arbitrate.
+func contractDataUpsertConditions() []UpsertCondition {
+	return []UpsertCondition{
+		{"ledger_sequence", OpGE},
+	}
+}
+
 func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 	rawRecords := data.([]interface{})
 
@@ -158,13 +193,7 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		return err
 	}
 
-	// A removal always arrives in a later ledger than the entry it removes, so
-	// this condition passes and the tombstone is applied. It also means a later
-	// LedgerEntryRestored change clears the tombstone, since ON CONFLICT assigns
-	// deleted = excluded.deleted.
-	upsertConditions := []UpsertCondition{
-		{"ledger_sequence", OpGT},
-	}
+	upsertConditions := contractDataUpsertConditions()
 	rowsAffected, err := i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
 	i.metricRecorder.RecordUpsertCount(i.dataset, rowsAffected)
 	return err
