@@ -25,10 +25,22 @@ func postgresSessionForTest(t *testing.T) *DBSession {
 	conn.Close()
 
 	testDB := dbtest.Postgres(t)
-	t.Cleanup(func() { testDB.Close() })
+	t.Cleanup(testDB.Close)
 
 	session, err := NewPostgresSession(context.Background(), testDB.DSN)
 	require.NoError(t, err, "NewPostgresSession also applies the migrations")
+
+	// Registered after testDB.Close, so it runs first: cleanups are last-added,
+	// first-called. That order matters. testDB.Close drops the scratch database,
+	// and DROP DATABASE fails with "is being accessed by other users" while this
+	// session still holds a pooled connection -- dbtest attempts
+	// pg_terminate_backend but documents it as best effort.
+	t.Cleanup(func() {
+		if err := session.session.Close(); err != nil {
+			t.Logf("closing test session: %v", err)
+		}
+	})
+
 	return session
 }
 
