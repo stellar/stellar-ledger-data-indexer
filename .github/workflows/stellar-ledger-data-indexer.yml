@@ -18,7 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        # Pulled through Google's anonymous Docker Hub mirror rather than from
+        # Docker Hub directly. Hosted runners share outbound IPs, so
+        # unauthenticated docker.io pulls get throttled collectively and the job
+        # fails in Initialize containers before any test runs. Same image: this
+        # tag resolves to the identical digest as postgres:16 on Docker Hub.
+        image: mirror.gcr.io/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
