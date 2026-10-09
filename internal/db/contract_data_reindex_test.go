@@ -22,7 +22,7 @@ func postgresSessionForTest(t *testing.T) *DBSession {
 	if err != nil {
 		t.Skipf("skipping DB-backed test: no postgres on localhost:5432 (%v)", err)
 	}
-	conn.Close()
+	_ = conn.Close()
 
 	testDB := dbtest.Postgres(t)
 	t.Cleanup(testDB.Close)
