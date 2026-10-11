@@ -1,8 +1,8 @@
 [datastore_config]
-type = "GCS"
+type = "Filesystem"
 
 [datastore_config.params]
-destination_bucket_path = "sdf-ledger-close-meta/v1/ledgers/pubnet"
+destination_path = "/tmp/ledger-test-data"
 
 [datastore_config.schema]
 ledgers_per_file = 1
