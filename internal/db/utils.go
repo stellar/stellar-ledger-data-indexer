@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -71,12 +72,39 @@ func (q *DBSession) GetMaxLedgerSequence(ctx context.Context, tableName string) 
 }
 
 // Extended from https://github.com/stellar/stellar-horizon/blob/main/internal/db2/history/main.go
-func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField string, fields []UpsertField, conditions []UpsertCondition) (rowsAffected int64, err error) {
+func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField string, fields []UpsertField, setExprs []UpsertSetExpr, conditions []UpsertCondition) (rowsAffected int64, err error) {
+	sql, pqArrays, err := upsertRowsSQL(table, conflictField, fields, setExprs, conditions)
+	if err != nil {
+		return 0, err
+	}
+
+	sqlRes, err := q.session.ExecRaw(
+		context.WithValue(ctx, &db.QueryTypeContextKey, db.UpsertQueryType),
+		sql,
+		pqArrays...,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("upsert rows exec failed: %w", err)
+	}
+	return sqlRes.RowsAffected()
+}
+
+// upsertRowsSQL builds the statement UpsertRows runs and its bind arguments, one array per field.
+func upsertRowsSQL(table string, conflictField string, fields []UpsertField, setExprs []UpsertSetExpr, conditions []UpsertCondition) (string, []interface{}, error) {
 	unnestPart := make([]string, 0, len(fields))
 	insertFieldsPart := make([]string, 0, len(fields))
 	onConflictPart := make([]string, 0, len(fields))
 	pqArrays := make([]interface{}, 0, len(fields))
 	onConflictConditionPart := make([]string, 0, len(fields))
+	setExprByColumn := make(map[string]string, len(setExprs))
+	for _, setExpr := range setExprs {
+		setExprByColumn[setExpr.column] = setExpr.expr
+	}
+	for _, setExpr := range setExprs {
+		if !slices.ContainsFunc(fields, func(field UpsertField) bool { return field.name == setExpr.column }) {
+			return "", nil, fmt.Errorf("set expression for %s, which is not an upsert field", setExpr.column)
+		}
+	}
 
 	for _, field := range fields {
 		unnestPart = append(
@@ -87,9 +115,13 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 			insertFieldsPart,
 			field.name,
 		)
+		setExpr, ok := setExprByColumn[field.name]
+		if !ok {
+			setExpr = "excluded." + field.name
+		}
 		onConflictPart = append(
 			onConflictPart,
-			fmt.Sprintf("%s = excluded.%s", field.name, field.name),
+			fmt.Sprintf("%s = %s", field.name, setExpr),
 		)
 		pqArrays = append(
 			pqArrays,
@@ -98,7 +130,7 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 	}
 	for _, condition := range conditions {
 		if !condition.operator.Valid() {
-			return 0, fmt.Errorf("invalid operator for condition on field %s", condition.column)
+			return "", nil, fmt.Errorf("invalid operator for condition on field %s", condition.column)
 		}
 		onConflictConditionPart = append(
 			onConflictConditionPart,
@@ -117,16 +149,7 @@ func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField 
 	if len(onConflictConditionPart) > 0 {
 		sql += " WHERE " + strings.Join(onConflictConditionPart, " AND ")
 	}
-
-	sqlRes, err := q.session.ExecRaw(
-		context.WithValue(ctx, &db.QueryTypeContextKey, db.UpsertQueryType),
-		sql,
-		pqArrays...,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("upsert rows exec failed: %w", err)
-	}
-	return sqlRes.RowsAffected()
+	return sql, pqArrays, nil
 }
 
 func (q *DBSession) EnrichExistingRows(ctx context.Context, table string, joinField string, fields []UpsertField, condition string) (rowsAffected int64, err error) {

@@ -8,6 +8,8 @@ import (
 
 	"github.com/stellar/go-stellar-sdk/support/db/dbtest"
 	"github.com/stellar/go-stellar-sdk/xdr"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/contract"
+	"github.com/stellar/stellar-ledger-data-indexer/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +64,7 @@ func TestUpsertReindexTombstonesLegacyPhantomRow(t *testing.T) {
 	})
 	require.NoError(t, err)
 	legacy = withoutColumns(legacy, "deleted", "ledger_entry_change")
-	_, err = session.UpsertRows(ctx, "contract_data", "key_hash", legacy, nil)
+	_, err = session.UpsertRows(ctx, "contract_data", "key_hash", legacy, nil, nil)
 	require.NoError(t, err)
 	assertDeleted(t, session, keyHash, nil)
 
@@ -70,7 +72,7 @@ func TestUpsertReindexTombstonesLegacyPhantomRow(t *testing.T) {
 		testOutput(keyHash, removalLedger, xdr.LedgerEntryChangeTypeLedgerEntryRemoved),
 	})
 	require.NoError(t, err)
-	_, err = session.UpsertRows(ctx, "contract_data", "key_hash", replay, contractDataUpsertConditions())
+	_, err = session.UpsertRows(ctx, "contract_data", "key_hash", replay, nil, contractDataUpsertConditions())
 	require.NoError(t, err)
 
 	assertDeleted(t, session, keyHash, boolPtr(true))
@@ -89,19 +91,120 @@ func TestUpsertDoesNotRewindNewerRows(t *testing.T) {
 		testOutput(keyHash, 2200, xdr.LedgerEntryChangeTypeLedgerEntryUpdated),
 	})
 	require.NoError(t, err)
-	_, err = session.UpsertRows(ctx, "contract_data", "key_hash", current, nil)
+	_, err = session.UpsertRows(ctx, "contract_data", "key_hash", current, nil, nil)
 	require.NoError(t, err)
 
 	stale, err := contractDataUpsertFields([]interface{}{
 		testOutput(keyHash, 2100, xdr.LedgerEntryChangeTypeLedgerEntryRemoved),
 	})
 	require.NoError(t, err)
-	_, err = session.UpsertRows(ctx, "contract_data", "key_hash", stale, contractDataUpsertConditions())
+	_, err = session.UpsertRows(ctx, "contract_data", "key_hash", stale, nil, contractDataUpsertConditions())
 	require.NoError(t, err)
 
 	assertDeleted(t, session, keyHash, boolPtr(false))
 	assertLedgerSequence(t, session, keyHash, 2200)
 }
+
+// TestUpsertTTLMerge runs the contract_data and ttl writers in ledger order.
+// The TTL carried on a contract_data row makes the ttl dataset's write for the
+// same ledger a no-op; a replay must not lower a TTL raised by a later TTL-only
+// ledger, while a newer ledger can still lower it (delete and recreate).
+func TestUpsertTTLMerge(t *testing.T) {
+	session := postgresSessionForTest(t)
+	ctx := context.Background()
+	metrics := &upsertCountRecorder{}
+	contractData := NewContractDataDBOperator(*session, metrics)
+	ttl := NewTTLDBOperator(*session, metrics)
+
+	const keyHash = "ttl-merge"
+	withTTL := func(ledger uint32, liveUntil *uint32) []interface{} {
+		row := testOutput(keyHash, ledger, xdr.LedgerEntryChangeTypeLedgerEntryUpdated)
+		row.LiveUntilLedgerSeq = liveUntil
+		return []interface{}{row}
+	}
+	ttlChange := func(liveUntil uint32) []interface{} {
+		return []interface{}{contract.TtlOutput{KeyHash: keyHash, LiveUntilLedgerSeq: liveUntil}}
+	}
+
+	// Ledger 100 changes data and TTL: one row version, the ttl write finds nothing to do.
+	require.NoError(t, contractData.Upsert(ctx, withTTL(100, uint32Ptr(1000))))
+	assertLiveUntil(t, session, keyHash, uint32Ptr(1000))
+	require.NoError(t, ttl.Upsert(ctx, ttlChange(1000)))
+	assert.Equal(t, int64(0), metrics.last["ttl"], "ttl write after the merged upsert should touch no row")
+	assertLiveUntil(t, session, keyHash, uint32Ptr(1000))
+
+	// A later TTL-only ledger raises the TTL without advancing ledger_sequence.
+	require.NoError(t, ttl.Upsert(ctx, ttlChange(2000)))
+	assert.Equal(t, int64(1), metrics.last["ttl"])
+	assertLiveUntil(t, session, keyHash, uint32Ptr(2000))
+
+	// A replay of ledger 100 keeps the raised TTL.
+	require.NoError(t, contractData.Upsert(ctx, withTTL(100, uint32Ptr(1000))))
+	assertLiveUntil(t, session, keyHash, uint32Ptr(2000))
+
+	// A newer ledger that did not change the TTL keeps it too.
+	require.NoError(t, contractData.Upsert(ctx, withTTL(110, nil)))
+	assertLiveUntil(t, session, keyHash, uint32Ptr(2000))
+	assertLedgerSequence(t, session, keyHash, 110)
+
+	// A newer ledger that deleted and recreated the entry lowers it.
+	require.NoError(t, contractData.Upsert(ctx, withTTL(120, uint32Ptr(500))))
+	assertLiveUntil(t, session, keyHash, uint32Ptr(500))
+	assertLedgerSequence(t, session, keyHash, 120)
+}
+
+// TestUpsertTTLMergeFillsMissingTTLOnReplay covers a row whose ttl write never
+// landed, e.g. the pod stopped between the two datasets' writes of a ledger.
+// The replay of that ledger fills the TTL in the contract_data upsert itself,
+// so the ttl dataset's write that follows is a no-op.
+func TestUpsertTTLMergeFillsMissingTTLOnReplay(t *testing.T) {
+	session := postgresSessionForTest(t)
+	ctx := context.Background()
+	metrics := &upsertCountRecorder{}
+	contractData := NewContractDataDBOperator(*session, metrics)
+	ttl := NewTTLDBOperator(*session, metrics)
+
+	const keyHash = "ttl-missing"
+	row := testOutput(keyHash, 200, xdr.LedgerEntryChangeTypeLedgerEntryUpdated)
+	require.NoError(t, contractData.Upsert(ctx, []interface{}{row}))
+	assertLiveUntil(t, session, keyHash, nil)
+
+	row.LiveUntilLedgerSeq = uint32Ptr(700)
+	require.NoError(t, contractData.Upsert(ctx, []interface{}{row}))
+	assertLiveUntil(t, session, keyHash, uint32Ptr(700))
+	assertLedgerSequence(t, session, keyHash, 200)
+
+	require.NoError(t, ttl.Upsert(ctx, []interface{}{contract.TtlOutput{KeyHash: keyHash, LiveUntilLedgerSeq: 700}}))
+	assert.Equal(t, int64(0), metrics.last["ttl"], "ttl write after the merged upsert should touch no row")
+}
+
+// upsertCountRecorder keeps the rows-affected count of the last write per dataset.
+type upsertCountRecorder struct {
+	utils.MetricRecorder
+	last map[string]int64
+}
+
+func (r *upsertCountRecorder) RecordUpsertCount(dataset string, count int64) {
+	if r.last == nil {
+		r.last = map[string]int64{}
+	}
+	r.last[dataset] = count
+}
+
+func assertLiveUntil(t *testing.T, session *DBSession, keyHash string, want *uint32) {
+	t.Helper()
+	var got *int64
+	require.NoError(t, session.session.GetRaw(context.Background(), &got,
+		"SELECT live_until_ledger_sequence FROM contract_data WHERE key_hash = $1", keyHash))
+	if want == nil {
+		assert.Nil(t, got, "live_until_ledger_sequence should still be NULL")
+		return
+	}
+	require.NotNil(t, got, "live_until_ledger_sequence should have been written")
+	assert.Equal(t, int64(*want), *got)
+}
+
+func uint32Ptr(n uint32) *uint32 { return &n }
 
 // withoutColumns drops bound columns so a test can write a row the way a
 // pre-migration build would have written it.

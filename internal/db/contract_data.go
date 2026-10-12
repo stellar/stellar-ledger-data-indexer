@@ -107,7 +107,7 @@ func sanitizeKeySymbol(symbol string) string {
 // STATE (3) never appears: the SDK folds those into the Pre image of the change
 // they accompany rather than surfacing them.
 func contractDataUpsertFields(rawRecords []interface{}) ([]UpsertField, error) {
-	var contractId, ledgerSequence, ledgerKeyHash, contractDurability, keySymbol, closedAt, key, val, deleted, ledgerEntryChange []interface{}
+	var contractId, ledgerSequence, ledgerKeyHash, contractDurability, keySymbol, closedAt, key, val, deleted, ledgerEntryChange, liveUntil []interface{}
 
 	for _, rawRecord := range rawRecords {
 		contractData, ok := rawRecord.(contract.ContractDataOutput)
@@ -134,6 +134,11 @@ func contractDataUpsertFields(rawRecords []interface{}) ([]UpsertField, error) {
 		val = append(val, valBytes)
 		deleted = append(deleted, contractData.Deleted)
 		ledgerEntryChange = append(ledgerEntryChange, contractData.LedgerEntryChange)
+		if contractData.LiveUntilLedgerSeq != nil {
+			liveUntil = append(liveUntil, *contractData.LiveUntilLedgerSeq)
+		} else {
+			liveUntil = append(liveUntil, nil)
+		}
 	}
 
 	return []UpsertField{
@@ -147,7 +152,29 @@ func contractDataUpsertFields(rawRecords []interface{}) ([]UpsertField, error) {
 		{"closed_at", "timestamp", closedAt},
 		{"deleted", "boolean", deleted},
 		{"ledger_entry_change", "int", ledgerEntryChange},
+		{"live_until_ledger_sequence", "int", liveUntil},
 	}, nil
+}
+
+// contractDataUpsertSetExprs overrides the ON CONFLICT assignment for columns
+// whose stored value must not simply be replaced by the incoming one.
+//
+// A NULL means this ledger did not change the key's TTL, so the stored value
+// stays. Otherwise the carried value is the key's TTL after this ledger; it can
+// be lower than the stored one when an entry was deleted and recreated.
+//
+// A same-ledger replay keeps the stored TTL: TTL-only changes don't advance
+// ledger_sequence, so the stored value may come from a later ledger. It only
+// fills a NULL one, so a row whose ttl write never landed gets its TTL in the
+// same statement instead of in the ttl dataset's follow-up update.
+func contractDataUpsertSetExprs(table string) []UpsertSetExpr {
+	return []UpsertSetExpr{
+		{"live_until_ledger_sequence", fmt.Sprintf(
+			"CASE WHEN excluded.ledger_sequence > %[1]s.ledger_sequence"+
+				" THEN COALESCE(excluded.live_until_ledger_sequence, %[1]s.live_until_ledger_sequence)"+
+				" ELSE COALESCE(%[1]s.live_until_ledger_sequence, excluded.live_until_ledger_sequence) END",
+			table)},
+	}
 }
 
 // contractDataUpsertConditions is the ON CONFLICT guard deciding whether an
@@ -193,8 +220,9 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		return err
 	}
 
+	upsertSetExprs := contractDataUpsertSetExprs(i.table)
 	upsertConditions := contractDataUpsertConditions()
-	rowsAffected, err := i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
+	rowsAffected, err := i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertSetExprs, upsertConditions)
 	i.metricRecorder.RecordUpsertCount(i.dataset, rowsAffected)
 	return err
 }
