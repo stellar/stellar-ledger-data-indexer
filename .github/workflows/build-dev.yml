@@ -13,7 +13,7 @@ permissions:
 jobs:
   build-and-push-container-image:
     name: Build and push a sha tagged container image
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v6
       - name: Add SHORT_SHA env property with commit short sha
