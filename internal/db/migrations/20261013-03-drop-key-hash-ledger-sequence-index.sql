@@ -1,6 +1,5 @@
 -- +migrate Up notransaction
--- The previous file built idx_contract_data_contract_id_key_hash, which
--- replaces this index. Returns ~100 GB on pubnet.
+-- Replaced by idx_contract_data_contract_id_key_hash. 100 GB on pubnet.
 DROP INDEX CONCURRENTLY IF EXISTS idx_contract_data_contract_id_key_hash_ledger_sequence_desc;
 
 -- +migrate Down notransaction
