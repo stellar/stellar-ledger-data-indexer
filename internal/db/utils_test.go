@@ -67,3 +67,19 @@ func TestUpsertRowsSQLRejectsInvalidOperator(t *testing.T) {
 	assert.Equal(t, "", sql)
 	assert.Nil(t, args)
 }
+
+func TestUpsertRowsSQLRejectsDuplicateSetExpr(t *testing.T) {
+	fields := []UpsertField{
+		{"key_hash", "text", []interface{}{"a"}},
+		{"live_until_ledger_sequence", "int", []interface{}{uint32(10)}},
+	}
+	setExprs := []UpsertSetExpr{
+		{"live_until_ledger_sequence", "excluded.live_until_ledger_sequence"},
+		{"live_until_ledger_sequence", "contract_data.live_until_ledger_sequence"},
+	}
+
+	sql, args, err := upsertRowsSQL("contract_data", "key_hash", fields, setExprs, nil)
+	assert.EqualError(t, err, "duplicate set expression for live_until_ledger_sequence")
+	assert.Equal(t, "", sql)
+	assert.Nil(t, args)
+}

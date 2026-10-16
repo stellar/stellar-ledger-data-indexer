@@ -98,12 +98,13 @@ func upsertRowsSQL(table string, conflictField string, fields []UpsertField, set
 	onConflictConditionPart := make([]string, 0, len(fields))
 	setExprByColumn := make(map[string]string, len(setExprs))
 	for _, setExpr := range setExprs {
-		setExprByColumn[setExpr.column] = setExpr.expr
-	}
-	for _, setExpr := range setExprs {
+		if _, dup := setExprByColumn[setExpr.column]; dup {
+			return "", nil, fmt.Errorf("duplicate set expression for %s", setExpr.column)
+		}
 		if !slices.ContainsFunc(fields, func(field UpsertField) bool { return field.name == setExpr.column }) {
 			return "", nil, fmt.Errorf("set expression for %s, which is not an upsert field", setExpr.column)
 		}
+		setExprByColumn[setExpr.column] = setExpr.expr
 	}
 
 	for _, field := range fields {
