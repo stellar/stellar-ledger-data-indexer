@@ -75,7 +75,7 @@ func (q *DBSession) GetMaxLedgerSequence(ctx context.Context, tableName string) 
 func (q *DBSession) UpsertRows(ctx context.Context, table string, conflictField string, fields []UpsertField, setExprs []UpsertSetExpr, conditions []UpsertCondition) (rowsAffected int64, err error) {
 	sql, pqArrays, err := upsertRowsSQL(table, conflictField, fields, setExprs, conditions)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("upsert rows for %s: %w", table, err)
 	}
 
 	sqlRes, err := q.session.ExecRaw(

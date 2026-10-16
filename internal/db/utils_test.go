@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -82,4 +83,14 @@ func TestUpsertRowsSQLRejectsDuplicateSetExpr(t *testing.T) {
 	assert.EqualError(t, err, "duplicate set expression for live_until_ledger_sequence")
 	assert.Equal(t, "", sql)
 	assert.Nil(t, args)
+}
+
+func TestUpsertRowsWrapsBuilderError(t *testing.T) {
+	session := postgresSessionForTest(t)
+	fields := []UpsertField{{"key_hash", "text", []interface{}{"a"}}}
+	conditions := []UpsertCondition{{"ledger_sequence", Operator("DROP")}}
+
+	rows, err := session.UpsertRows(context.Background(), "contract_data", "key_hash", fields, nil, conditions)
+	assert.EqualError(t, err, "upsert rows for contract_data: invalid operator for condition on field ledger_sequence")
+	assert.Equal(t, int64(0), rows)
 }
