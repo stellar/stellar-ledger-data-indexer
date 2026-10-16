@@ -107,8 +107,8 @@ func TestUpsertDoesNotRewindNewerRows(t *testing.T) {
 
 // TestUpsertTTLMerge runs the contract_data and ttl writers in ledger order.
 // The TTL carried on a contract_data row makes the ttl dataset's write for the
-// same ledger a no-op; a replay must not lower a TTL raised by a later TTL-only
-// ledger, while a newer ledger can still lower it (delete and recreate).
+// same ledger a no-op. No write lowers a live row's TTL, whatever its ledger;
+// only a recreate after a tombstone takes the carried value as is.
 func TestUpsertTTLMerge(t *testing.T) {
 	session := postgresSessionForTest(t)
 	ctx := context.Background()
@@ -117,10 +117,13 @@ func TestUpsertTTLMerge(t *testing.T) {
 	ttl := NewTTLDBOperator(*session, metrics)
 
 	const keyHash = "ttl-merge"
-	withTTL := func(ledger uint32, liveUntil *uint32) []interface{} {
-		row := testOutput(keyHash, ledger, xdr.LedgerEntryChangeTypeLedgerEntryUpdated)
+	change := func(ledger uint32, changeType xdr.LedgerEntryChangeType, liveUntil *uint32) []interface{} {
+		row := testOutput(keyHash, ledger, changeType)
 		row.LiveUntilLedgerSeq = liveUntil
 		return []interface{}{row}
+	}
+	withTTL := func(ledger uint32, liveUntil *uint32) []interface{} {
+		return change(ledger, xdr.LedgerEntryChangeTypeLedgerEntryUpdated, liveUntil)
 	}
 	ttlChange := func(liveUntil uint32) []interface{} {
 		return []interface{}{contract.TtlOutput{KeyHash: keyHash, LiveUntilLedgerSeq: liveUntil}}
@@ -147,10 +150,53 @@ func TestUpsertTTLMerge(t *testing.T) {
 	assertLiveUntil(t, session, keyHash, uint32Ptr(2000))
 	assertLedgerSequence(t, session, keyHash, 110)
 
-	// A newer ledger that deleted and recreated the entry lowers it.
-	require.NoError(t, contractData.Upsert(ctx, withTTL(120, uint32Ptr(500))))
+	// A newer ledger carrying a lower TTL for a live entry keeps the stored one:
+	// a live entry's TTL only grows, so the lower value is from a lagging writer.
+	require.NoError(t, contractData.Upsert(ctx, withTTL(115, uint32Ptr(1500))))
+	assertLiveUntil(t, session, keyHash, uint32Ptr(2000))
+	assertLedgerSequence(t, session, keyHash, 115)
+
+	// Delete and recreate is the one way a TTL legitimately goes down.
+	require.NoError(t, contractData.Upsert(ctx, change(120, xdr.LedgerEntryChangeTypeLedgerEntryRemoved, uint32Ptr(2000))))
+	assertDeleted(t, session, keyHash, boolPtr(true))
+	require.NoError(t, contractData.Upsert(ctx, change(130, xdr.LedgerEntryChangeTypeLedgerEntryCreated, uint32Ptr(500))))
+	assertDeleted(t, session, keyHash, boolPtr(false))
 	assertLiveUntil(t, session, keyHash, uint32Ptr(500))
-	assertLedgerSequence(t, session, keyHash, 120)
+	assertLedgerSequence(t, session, keyHash, 130)
+}
+
+// TestUpsertTTLMergeOutOfOrderReplay is the parallel-backfill case: a writer
+// that lags has a data ledger newer than the stored row but older than a
+// TTL-only ledger another writer already applied. TTL-only writes never advance
+// ledger_sequence, so the guard cannot tell; the merge must keep the raised TTL.
+func TestUpsertTTLMergeOutOfOrderReplay(t *testing.T) {
+	session := postgresSessionForTest(t)
+	ctx := context.Background()
+	metrics := &upsertCountRecorder{}
+	contractData := NewContractDataDBOperator(*session, metrics)
+	ttl := NewTTLDBOperator(*session, metrics)
+
+	const keyHash = "ttl-out-of-order"
+	data := func(ledger uint32, liveUntil uint32) []interface{} {
+		row := testOutput(keyHash, ledger, xdr.LedgerEntryChangeTypeLedgerEntryUpdated)
+		row.LiveUntilLedgerSeq = uint32Ptr(liveUntil)
+		return []interface{}{row}
+	}
+
+	// Ledger 120: data and TTL. Ledger 130, TTL-only, raises it.
+	require.NoError(t, contractData.Upsert(ctx, data(120, 1500)))
+	require.NoError(t, ttl.Upsert(ctx, []interface{}{contract.TtlOutput{KeyHash: keyHash, LiveUntilLedgerSeq: 2000}}))
+	assertLiveUntil(t, session, keyHash, uint32Ptr(2000))
+
+	// Ledger 125 arrives last, from a writer behind the one that applied 130.
+	require.NoError(t, contractData.Upsert(ctx, data(125, 1500)))
+	assertLedgerSequence(t, session, keyHash, 125)
+	assertLiveUntil(t, session, keyHash, uint32Ptr(2000))
+
+	// Its ttl write for 125 changes nothing either.
+	require.NoError(t, ttl.Upsert(ctx, []interface{}{contract.TtlOutput{KeyHash: keyHash, LiveUntilLedgerSeq: 1500}}))
+	assert.Equal(t, int64(0), metrics.last["ttl"])
+	assertLiveUntil(t, session, keyHash, uint32Ptr(2000))
 }
 
 // TestUpsertTTLMergeFillsMissingTTLOnReplay covers a row whose ttl write never

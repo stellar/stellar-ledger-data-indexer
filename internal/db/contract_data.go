@@ -159,20 +159,23 @@ func contractDataUpsertFields(rawRecords []interface{}) ([]UpsertField, error) {
 // contractDataUpsertSetExprs overrides the ON CONFLICT assignment for columns
 // whose stored value must not simply be replaced by the incoming one.
 //
-// A NULL means this ledger did not change the key's TTL, so the stored value
-// stays. Otherwise the carried value is the key's TTL after this ledger; it can
-// be lower than the stored one when an entry was deleted and recreated.
+// The carried TTL is the key's TTL after this ledger, or NULL when the ledger
+// did not change it. The stored one may be newer than the stored
+// ledger_sequence says: TTL-only ledgers raise it without advancing that
+// column, and a lagging writer (parallel backfill, a backfill behind live
+// ingestion, a replay) can then bring a data ledger that is newer than the row
+// but older than the TTL. The guard cannot tell those apart, so the merge
+// relies on the TTL itself: a live entry's TTL only grows, hence GREATEST,
+// which ignores NULLs and so also fills a TTL that never landed.
 //
-// A same-ledger replay keeps the stored TTL: TTL-only changes don't advance
-// ledger_sequence, so the stored value may come from a later ledger. It only
-// fills a NULL one, so a row whose ttl write never landed gets its TTL in the
-// same statement instead of in the ttl dataset's follow-up update.
+// The one legitimate way down is delete and recreate. The stored row is then a
+// tombstone, and a newer ledger takes the carried value as is.
 func contractDataUpsertSetExprs(table string) []UpsertSetExpr {
 	return []UpsertSetExpr{
 		{"live_until_ledger_sequence", fmt.Sprintf(
-			"CASE WHEN excluded.ledger_sequence > %[1]s.ledger_sequence"+
+			"CASE WHEN excluded.ledger_sequence > %[1]s.ledger_sequence AND %[1]s.deleted IS TRUE"+
 				" THEN COALESCE(excluded.live_until_ledger_sequence, %[1]s.live_until_ledger_sequence)"+
-				" ELSE COALESCE(%[1]s.live_until_ledger_sequence, excluded.live_until_ledger_sequence) END",
+				" ELSE GREATEST(excluded.live_until_ledger_sequence, %[1]s.live_until_ledger_sequence) END",
 			table)},
 	}
 }
