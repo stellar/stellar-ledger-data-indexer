@@ -107,7 +107,7 @@ func sanitizeKeySymbol(symbol string) string {
 // STATE (3) never appears: the SDK folds those into the Pre image of the change
 // they accompany rather than surfacing them.
 func contractDataUpsertFields(rawRecords []interface{}) ([]UpsertField, error) {
-	var contractId, ledgerSequence, ledgerKeyHash, contractDurability, keySymbol, closedAt, key, val, deleted, ledgerEntryChange []interface{}
+	var contractId, ledgerSequence, ledgerKeyHash, contractDurability, keySymbol, closedAt, key, val, deleted, ledgerEntryChange, liveUntil []interface{}
 
 	for _, rawRecord := range rawRecords {
 		contractData, ok := rawRecord.(contract.ContractDataOutput)
@@ -134,6 +134,11 @@ func contractDataUpsertFields(rawRecords []interface{}) ([]UpsertField, error) {
 		val = append(val, valBytes)
 		deleted = append(deleted, contractData.Deleted)
 		ledgerEntryChange = append(ledgerEntryChange, contractData.LedgerEntryChange)
+		if contractData.LiveUntilLedgerSeq != nil {
+			liveUntil = append(liveUntil, *contractData.LiveUntilLedgerSeq)
+		} else {
+			liveUntil = append(liveUntil, nil)
+		}
 	}
 
 	return []UpsertField{
@@ -147,7 +152,32 @@ func contractDataUpsertFields(rawRecords []interface{}) ([]UpsertField, error) {
 		{"closed_at", "timestamp", closedAt},
 		{"deleted", "boolean", deleted},
 		{"ledger_entry_change", "int", ledgerEntryChange},
+		{"live_until_ledger_sequence", "int", liveUntil},
 	}, nil
+}
+
+// contractDataUpsertSetExprs overrides the ON CONFLICT assignment for columns
+// whose stored value must not simply be replaced by the incoming one.
+//
+// The carried TTL is the key's TTL after this ledger, or NULL when the ledger
+// did not change it. The stored one may be newer than the stored
+// ledger_sequence says: TTL-only ledgers raise it without advancing that
+// column, and a lagging writer (parallel backfill, a backfill behind live
+// ingestion, a replay) can then bring a data ledger that is newer than the row
+// but older than the TTL. The guard cannot tell those apart, so the merge
+// relies on the TTL itself: a live entry's TTL only grows, hence GREATEST,
+// which ignores NULLs and so also fills a TTL that never landed.
+//
+// The one legitimate way down is delete and recreate. The stored row is then a
+// tombstone, and a newer ledger takes the carried value as is.
+func contractDataUpsertSetExprs(table string) []UpsertSetExpr {
+	return []UpsertSetExpr{
+		{"live_until_ledger_sequence", fmt.Sprintf(
+			"CASE WHEN excluded.ledger_sequence > %[1]s.ledger_sequence AND %[1]s.deleted IS TRUE"+
+				" THEN COALESCE(excluded.live_until_ledger_sequence, %[1]s.live_until_ledger_sequence)"+
+				" ELSE GREATEST(excluded.live_until_ledger_sequence, %[1]s.live_until_ledger_sequence) END",
+			table)},
+	}
 }
 
 // contractDataUpsertConditions is the ON CONFLICT guard deciding whether an
@@ -193,8 +223,9 @@ func (i *contractDataDBOperator) Upsert(ctx context.Context, data any) error {
 		return err
 	}
 
+	upsertSetExprs := contractDataUpsertSetExprs(i.table)
 	upsertConditions := contractDataUpsertConditions()
-	rowsAffected, err := i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertConditions)
+	rowsAffected, err := i.session.UpsertRows(ctx, i.table, "key_hash", upsertFields, upsertSetExprs, upsertConditions)
 	i.metricRecorder.RecordUpsertCount(i.dataset, rowsAffected)
 	return err
 }

@@ -156,6 +156,7 @@ func TestContractDataUpsertFields_AllColumnsPresent(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		"contract_id", "ledger_sequence", "key_hash", "durability",
 		"key_symbol", "key", "val", "closed_at", "deleted", "ledger_entry_change",
+		"live_until_ledger_sequence",
 	}, columnNames(fields))
 
 	for _, f := range fields {
